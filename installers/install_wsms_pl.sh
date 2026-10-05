@@ -31,6 +31,10 @@ log_step() {
     echo -e "\n${BLUE}▶️  $CURRENT_STEP${NC}"
 }
 
+log_info() {
+    echo -e "   ${CYAN}ℹ️  $1${NC}"
+}
+
 log_success() {
     echo -e "   ${GREEN}✅ $1${NC}"
 }
@@ -206,7 +210,7 @@ elif [ -f "$(pwd)/CHANGELOG.md" ]; then
 fi
 
 # 2. Fallback: Jeśli instalator został uruchomiony jako pojedynczy plik (np. curl / scp), pobierz dokumentację z repozytorium GitHub
-if [ ! -f "$WSMS_DOCS_DIR/README.md" ]; then
+if [ ! -f "$WSMS_DOCS_DIR/README.md" ] && command -v curl >/dev/null 2>&1; then
     log_info "Pobieranie dokumentacji z oficjalnego repozytorium GitHub..."
     GH_RAW="https://raw.githubusercontent.com/lucasmalec/wp-server-management-system/main"
     for doc in "README.md" "CHANGELOG.md"; do
