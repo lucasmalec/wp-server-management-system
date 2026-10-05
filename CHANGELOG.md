@@ -2,6 +2,24 @@
 
 All notable changes to WSMS PRO are documented in this file.
 
+## [4.5.0] - 2026-10-05
+
+### Added
+- **Hybrid Fleet Auto-Detection (WordPress + Static HTML):** The system now dynamically detects whether managed sites configured in `SITES` are WordPress instances (`wp-config.php`) or static HTML sites (`index.html`/`index.htm`), eliminating false `CRITICAL`/`KRYTYCZNY` error flags across all diagnostic commands.
+- **Dedicated Static Sites Backup Script (`static-sites-backup.sh`):** Added a new core backup module that archives static HTML web roots directly into `$BACKUP_FULL_DIR/static-$name-$TS.tar.gz` with full retention and cleanup support.
+- **Shell Aliases for Static Sites:** Added `wp-backup-static [site]` and `wsms-backup-static` to both Bash (`~/.bashrc`) and Fish (`~/.config/fish/config.fish`).
+- **Behavioral Test Suite Suite Expansion:** Added automated test assertions and behavioral testing for static site backups and hybrid fleet discovery, increasing test suite count to 225 passing checks.
+
+### Changed
+- `server-health-audit.sh` (`wp-health` / `system-diag`): Distinguishes PHP-FPM WordPress users from Static HTML web users and outputs dedicated static site diagnostic telemetry (disk size, HTML engine-free status).
+- `wp-fleet-status-monitor.sh` (`wp-fleet`): Reports `[Static HTML]` with active SSL expiry and HTTP status check, while cleanly skipping WP-CLI queries.
+- `wp-multi-instance-audit.sh` (`wp-audit`): Audits file count, directory size, and entry point permissions (644/640) for static sites without asserting database connectivity.
+- `wp-automated-maintenance-engine.sh` (`wp-update`): Gracefully skips WordPress core, plugin, and theme update cycles on static HTML sites without incrementing failure counters or breaking batch updates.
+- `mysql-backup-manager.sh` (`mysql-backup`): Gracefully skips static HTML sites without databases during batch backups, and informs the operator when targeted individually.
+- `wp-essential-assets-backup.sh` (`wp-backup-lite`): Archives complete site assets for static sites while archiving `wp-content` + DB for WordPress sites.
+- `wp-cli-infrastructure-validator.sh` (`wp-cli-validator`): Accurately marks static HTML sites as skipped without generating false failures.
+- `wp-help.sh`: Updated command index with `wp-backup-static`.
+
 ## [4.4.4] - 2026-09-23
 
 ### Added

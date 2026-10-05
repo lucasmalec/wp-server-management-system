@@ -703,15 +703,23 @@ else
 fi
 
 # ============================================
-# UŻYTKOWNICY PHP-FPM
+# UŻYTKOWNICY PHP-FPM / WWW
 # ============================================
-echo -e "\n${CYAN}👥 UŻYTKOWNICY PHP-FPM:${NC}"
+echo -e "\n${CYAN}👥 UŻYTKOWNICY PHP-FPM / WWW:${NC}"
 for site in "${SITES[@]}"; do
     IFS=':' read -r name path user <<< "$site"
-    if id "$user" &>/dev/null; then
-        echo -e "   ${GREEN}✅${NC} $name: $user"
+    if [ -f "$path/wp-config.php" ]; then
+        if id "$user" &>/dev/null; then
+            echo -e "   ${GREEN}✅${NC} $name: $user (PHP-FPM)"
+        else
+            echo -e "   ${RED}❌${NC} $name: $user (brak)"
+        fi
     else
-        echo -e "   ${RED}❌${NC} $name: $user (brak)"
+        if id "$user" &>/dev/null; then
+            echo -e "   ${GREEN}✅${NC} $name: $user (Statyczna HTML)"
+        else
+            echo -e "   ${YELLOW}⚠️${NC} $name: $user (brak użytkownika)"
+        fi
     fi
 done
 
@@ -732,9 +740,9 @@ for site in "${SITES[@]}"; do
 done
 
 # ============================================
-# ZARZĄDZANE STRONY WORDPRESS
+# ZARZĄDZANE STRONY (WORDPRESS I STATYCZNE)
 # ============================================
-echo -e "\n${CYAN}🌐 ZARZĄDZANE STRONY WORDPRESS:${NC}"
+echo -e "\n${CYAN}🌐 ZARZĄDZANE STRONY (WORDPRESS I STATYCZNE):${NC}"
 for site in "${SITES[@]}"; do
     IFS=':' read -r name path user <<< "$site"
     echo -e "   ${YELLOW}[ $name ]${NC}"
@@ -754,8 +762,12 @@ for site in "${SITES[@]}"; do
         else
             echo -e "      Aktualizacje: ${GREEN}Wszystko aktualne${NC}"
         fi
+    elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+        site_size=$(du -sh "$path" 2>/dev/null | cut -f1)
+        echo -e "      Typ: ${CYAN}Strona statyczna (HTML)${NC} | Rozmiar: $site_size"
+        echo -e "      Silnik: Czysty HTML (brak PHP / brak bazy MySQL)"
     else 
-        echo -e "      ${RED}KRYTYCZNY: Brak konfiguracji${NC}"
+        echo -e "      ${RED}KRYTYCZNY: Brak konfiguracji ani plików witryny w $path${NC}"
     fi
 done
 
@@ -937,8 +949,29 @@ for site in "${SITES[@]}"; do
         fi
 
         echo -e "   $status_icon $name: v$ver | $ssl_info | ${YELLOW}Aktualizacje: $total_updates${NC}"
+    elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+        site_domain="$name"
+        ssl_days=$(check_ssl_expiry "$site_domain")
+        if [ "$ssl_days" != "N/A" ]; then
+            if [ "$ssl_days" -lt 14 ]; then
+                ssl_info="${RED}SSL: $ssl_days dni${NC}"
+            else
+                ssl_info="${GREEN}SSL: $ssl_days dni${NC}"
+            fi
+        else
+            ssl_info="${YELLOW}SSL: N/A${NC}"
+        fi
+
+        http_code=$(sprawdz_dostepnosc_strony "$site_domain")
+        if czy_web_ok "$http_code"; then
+            status_icon="${GREEN}✅${NC}"
+        else
+            status_icon="${RED}❌ (HTTP $http_code)${NC}"
+        fi
+
+        echo -e "   $status_icon $name: ${CYAN}[HTML Statyczny]${NC} | $ssl_info | Bezsilnikowa (HTML/CSS/JS)"
     else
-        echo -e "   ${RED}❌ $name: Błąd środowiska w $path${NC}"
+        echo -e "   ${RED}❌ $name: Błąd środowiska w $path (brak plików witryny)${NC}"
     fi
 done
 
@@ -1007,8 +1040,22 @@ for site in "${SITES[@]}"; do
             echo "   ${GREEN}✅ WP_DEBUG wyłączone${NC}"
         fi
         
+    elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+        echo -e "\n${CYAN}📄 Typ witryny:${NC} Strona statyczna (czysty HTML/CSS/JS)"
+        site_size=$(du -sh "$path" 2>/dev/null | cut -f1)
+        file_count=$(find "$path" -type f 2>/dev/null | wc -l | tr -d ' ')
+        echo "   Rozmiar: $site_size | Liczba plików: $file_count"
+
+        echo -e "\n${CYAN}🔒 Szybkie sprawdzenie bezpieczeństwa:${NC}"
+        idx_perms=$(stat -c "%a" "$path/index.html" 2>/dev/null || stat -c "%a" "$path/index.htm" 2>/dev/null)
+        if [ "$idx_perms" = "644" ] || [ "$idx_perms" = "640" ]; then
+            echo "   ${GREEN}✅ Uprawnienia pliku głównego: $idx_perms${NC}"
+        else
+            echo "   ${YELLOW}⚠️ Uprawnienia pliku głównego: $idx_perms (zalecane 644)${NC}"
+        fi
+        echo "   ${GREEN}✅ Brak podatności WordPress / Brak bazy SQL${NC}"
     else
-        echo -e "   ${RED}❌ Brak konfiguracji w $path${NC}"
+        echo -e "   ${RED}❌ Brak konfiguracji ani plików witryny w $path${NC}"
     fi
 done
 
@@ -1114,6 +1161,10 @@ uruchom_aktualizacje_strony() {
     echo -e "\n🔄 Przetwarzanie: $name"
 
     if [ ! -f "$path/wp-config.php" ]; then
+        if [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+            echo -e "   ℹ️ Pominięto: $name jest stroną statyczną HTML (brak aktualizacji WP)"
+            return 0
+        fi
         echo -e "   ${RED}❌ Niepowodzenie: Brak konfiguracji w $path${NC}"
         ((fail_count++))
         return 1
@@ -1536,8 +1587,16 @@ for site in "${SITES[@]}"; do
         continue
     fi
     echo -e "\n📁 Archiwizacja zasobów $name..."
-    bash "$SCRIPT_DIR/mysql-backup-manager.sh" "$name" 2>/dev/null
-    tar -czf "$BACKUP_LITE_DIR/lite-$name-$TS.tar.gz" -C "$path" wp-content/uploads wp-content/themes wp-content/plugins wp-config.php .htaccess 2>/dev/null
+    if [ -f "$path/wp-config.php" ]; then
+        bash "$SCRIPT_DIR/mysql-backup-manager.sh" "$name" 2>/dev/null
+        tar -czf "$BACKUP_LITE_DIR/lite-$name-$TS.tar.gz" -C "$path" wp-content/uploads wp-content/themes wp-content/plugins wp-config.php .htaccess 2>/dev/null
+    elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+        echo "   ℹ️ Wykryto stronę statyczną HTML — archiwizacja plików witryny..."
+        tar -czf "$BACKUP_LITE_DIR/lite-$name-$TS.tar.gz" -C "$path" . 2>/dev/null
+    else
+        echo "   ⚠️ Brak plików witryny w $path — pomijanie."
+        continue
+    fi
     
     if [ -f "$BACKUP_LITE_DIR/lite-$name-$TS.tar.gz" ]; then
         size=$(du -h "$BACKUP_LITE_DIR/lite-$name-$TS.tar.gz" | cut -f1)
@@ -1551,6 +1610,80 @@ find "$BACKUP_LITE_DIR" -name "*.tar.gz" -mtime "+$RETENTION_LITE" -delete 2>/de
 echo -e "\n⏰ Zakończono: $(date)"
 echo -e "${GREEN}✅ CYKL SZYBKIEGO BACKUPU ZAKOŃCZONY${NC}"
 EOFLITE
+
+# -----------------------------------------------------------------
+# SKRYPT: static-sites-backup.sh
+# -----------------------------------------------------------------
+deploy "static-sites-backup.sh" << 'EOFSTATIC'
+#!/bin/bash
+# =================================================================
+# WSMS PRO v4.4.3 - BACKUP WITRYN STATYCZNYCH (HTML)
+# =================================================================
+
+source "$HOME/scripts/wsms-config.sh"
+TS=$(date +%Y%m%d-%H%M%S)
+CYAN='\033[0;36m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+
+LOG_FILE="$LOG_FULL_BACKUP"
+wsms_init_live_logging "$LOG_FILE"
+
+echo "=========================================================="
+echo "🌐 BACKUP WITRYN STATYCZNYCH HTML v4.4.3 - $(date)"
+echo "=========================================================="
+
+target_site="${1:-all}"
+
+if [ "$target_site" = "list" ]; then
+    echo -e "${YELLOW}📋 Dostępne backupy witryn statycznych:${NC}"
+    echo "=========================================================="
+    find "$BACKUP_FULL_DIR" -name "static-*.tar.gz" 2>/dev/null | sort -r | while read -r f; do
+        size=$(du -h "$f" | cut -f1)
+        echo "   📁 $(basename "$f") ($size)"
+    done
+    exit 0
+fi
+
+backed_up=0
+
+for site in "${SITES[@]}"; do
+    IFS=':' read -r name path user <<< "$site"
+
+    if [ "$target_site" != "all" ] && [ "$target_site" != "$name" ]; then
+        continue
+    fi
+
+    # Sprawdzenie czy witryna to strona statyczna
+    if [ ! -f "$path/wp-config.php" ] && { [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; }; then
+        echo -e "\n📦 Pakowanie witryny statycznej $name ($path)..."
+        tar -czf "$BACKUP_FULL_DIR/static-$name-$TS.tar.gz" -C "$path" . 2>/dev/null
+        if [ -f "$BACKUP_FULL_DIR/static-$name-$TS.tar.gz" ]; then
+            size=$(du -h "$BACKUP_FULL_DIR/static-$name-$TS.tar.gz" | cut -f1)
+            echo -e "   ${GREEN}✅ Archiwum utworzone: static-$name-$TS.tar.gz ($size)${NC}"
+            ((backed_up++))
+        else
+            echo -e "   ${RED}❌ Błąd podczas tworzenia archiwum dla $name${NC}"
+        fi
+    else
+        if [ "$target_site" = "$name" ]; then
+            if [ -f "$path/wp-config.php" ]; then
+                echo -e "   ${YELLOW}⚠️ Witryna $name to WordPress. Użyj 'wp-backup-site $name' lub 'wp-backup-full'.${NC}"
+            else
+                echo -e "   ${RED}❌ W $path nie znaleziono plików witryny HTML ani WordPress.${NC}"
+            fi
+        fi
+    fi
+done
+
+if [ "$backed_up" -eq 0 ] && [ "$target_site" = "all" ]; then
+    echo -e "\n${YELLOW}ℹ️ Nie znaleziono żadnych witryn statycznych HTML w konfiguracji SITES.${NC}"
+fi
+
+echo -e "\n🧹 Czyszczenie starych backupów statycznych (starsze niż $RETENTION_FULL dni)..."
+find "$BACKUP_FULL_DIR" -name "static-*.tar.gz" -mtime "+$RETENTION_FULL" -delete 2>/dev/null
+
+echo -e "\n⏰ Zakończono: $(date)"
+echo -e "${GREEN}✅ OPERACJA BACKUPU STATYCZNEGO ZAKOŃCZONA${NC}"
+EOFSTATIC
 
 # -----------------------------------------------------------------
 # SKRYPT 8: mysql-backup-manager.sh
@@ -1574,6 +1707,10 @@ if [ "$target" = "list" ]; then
     echo "=========================================================="
     for site in "${SITES[@]}"; do
         IFS=':' read -r name path user <<< "$site"
+        if [ ! -f "$path/wp-config.php" ] && { [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; }; then
+            echo "   ℹ️ $name: Strona statyczna (brak bazy danych)"
+            continue
+        fi
         count=$(find "$BACKUP_MYSQL_DIR" -name "db-$name-*.sql.gz" 2>/dev/null | wc -l)
         latest=$(ls -t "$BACKUP_MYSQL_DIR"/db-"$name"-*.sql.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null)
         echo "   📂 $name: $count backupów (Ostatni: ${latest:-brak})"
@@ -1598,8 +1735,12 @@ for site in "${SITES[@]}"; do
             else
                 echo "   ${RED}❌ Nie udało się zbackupować bazy dla $name${NC}"
             fi
+        elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+            if [ "$target" = "$name" ]; then
+                echo "   ℹ️ $name jest stroną statyczną HTML (brak bazy MySQL do zbackupowania)"
+            fi
         else
-            echo "   ${YELLOW}⚠️ Nie znaleziono wp-config.php dla $name${NC}"
+            echo "   ${YELLOW}⚠️ Nie znaleziono wp-config.php ani plików strony dla $name${NC}"
         fi
     fi
 done
@@ -2427,6 +2568,7 @@ echo -e "${YELLOW}  Tworzenie backupów:${NC}"
 printf "    ${GREEN}%-24s${NC} %s\n" "wp-backup-lite" "Szybki: motywy, wtyczki, uploads, config"
 printf "    ${GREEN}%-24s${NC} %s\n" "wp-backup-full" "Pełny: wszystkie pliki + baza danych"
 printf "    ${GREEN}%-24s${NC} %s\n" "wp-backup-site [strona]" "Kopia pojedynczej strony (pliki + baza)"
+printf "    ${GREEN}%-24s${NC} %s\n" "wp-backup-static [strona]" "Kopia witryn statycznych HTML (lub wybranej)"
 printf "    ${GREEN}%-24s${NC} %s\n" "wp-backup-ui" "Interaktywne menu wyboru strony do skopiowania"
 printf "    ${GREEN}%-24s${NC} %s\n" "mysql-backup-all" "Wszystkie bazy WordPress"
 printf "    ${GREEN}%-24s${NC} %s\n" "mysql-backup [strona]" "Kopia bazy strony (alias: mysql-backup-site)"
@@ -2735,7 +2877,13 @@ source "$HOME/scripts/wsms-config.sh"
 echo "🧪 WALIDACJA WP-CLI"
 for site in "${SITES[@]}"; do
     IFS=':' read -r name path user <<< "$site"
-    sudo -u "$user" wp --path="$path" core version &>/dev/null && echo "✅ $name" || echo "❌ $name"
+    if [ -f "$path/wp-config.php" ]; then
+        sudo -u "$user" wp --path="$path" core version &>/dev/null && echo "✅ $name" || echo "❌ $name"
+    elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+        echo "ℹ️ $name (strona statyczna HTML — pominięto WP-CLI)"
+    else
+        echo "❌ $name (brak konfiguracji)"
+    fi
 done
 EOFCLI
 
@@ -3156,6 +3304,8 @@ alias wp-backup-lite='bash $SCRIPTS_DIR/wp-essential-assets-backup.sh'
 alias wp-backup-full='bash $SCRIPTS_DIR/wp-full-recovery-backup.sh'
 alias wp-backup-ui='bash $SCRIPTS_DIR/wp-interactive-backup-tool.sh'
 alias wp-backup-site='bash $SCRIPTS_DIR/wp-interactive-backup-tool.sh'
+alias wp-backup-static='bash $SCRIPTS_DIR/static-sites-backup.sh'
+alias wsms-backup-static='wp-backup-static'
 alias red-robin='bash $SCRIPTS_DIR/red-robin-system-backup.sh'
 
 alias wp-snapshot='bash $SCRIPTS_DIR/wp-rollback.sh snapshot'
@@ -3315,6 +3465,8 @@ alias wp-backup-lite='bash $SCRIPTS_DIR/wp-essential-assets-backup.sh'
 alias wp-backup-full='bash $SCRIPTS_DIR/wp-full-recovery-backup.sh'
 alias wp-backup-ui='bash $SCRIPTS_DIR/wp-interactive-backup-tool.sh'
 alias wp-backup-site='bash $SCRIPTS_DIR/wp-interactive-backup-tool.sh'
+alias wp-backup-static='bash $SCRIPTS_DIR/static-sites-backup.sh'
+alias wsms-backup-static='wp-backup-static'
 alias red-robin='bash $SCRIPTS_DIR/red-robin-system-backup.sh'
 
 alias wp-snapshot='bash $SCRIPTS_DIR/wp-rollback.sh snapshot'

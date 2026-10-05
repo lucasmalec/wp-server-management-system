@@ -101,6 +101,8 @@ for installer in "$ROOT/installers/install_wsms.sh" "$ROOT/installers/install_ws
     assert_contains "$installer" "wp-rollback.sh"                         "rollback engine in $base"
     assert_contains "$installer" "wp-help.sh"                             "help script in $base"
     assert_contains "$installer" "wp-backup-site"                         "wp-backup-site in $base"
+    assert_contains "$installer" "wp-backup-static"                       "wp-backup-static in $base"
+    assert_contains "$installer" "static-sites-backup.sh"                 "static-sites-backup in $base"
     assert_contains "$installer" "mysql-backup-site"                      "mysql-backup-site in $base"
     assert_contains "$installer" "WSMS PRO v4.4.3"                        "version marker in $base"
     assert_contains "$installer" "/var/log/wsms"                          "/var/log/wsms in $base"
@@ -128,6 +130,7 @@ MODULES=(
     "mysql-backup-manager.sh"
     "infrastructure-permission-orchestrator.sh"
     "nas-sftp-sync.sh"
+    "static-sites-backup.sh"
 )
 
 for mod in "${MODULES[@]}"; do
@@ -192,6 +195,13 @@ assert_contains "$ROOT/installers/install_wsms.sh" "ensure_msmtprc" "installer h
 assert_contains "$ROOT/installers/install_wsms_pl.sh" "ensure_msmtprc" "PL installer has ensure_msmtprc"
 assert_contains "$ROOT/installers/install_wsms.sh" "SMTP_ENABLED" "installer has SMTP_ENABLED"
 assert_contains "$ROOT/installers/install_wsms_pl.sh" "SMTP_ENABLED" "PL installer has SMTP_ENABLED"
+
+assert_contains "$PREVIEW_EN/static-sites-backup.sh" 'source "$HOME/scripts/wsms-config.sh"' "static backup sources config"
+assert_contains "$PREVIEW_EN/static-sites-backup.sh" "BACKUP_FULL_DIR" "static backup uses BACKUP_FULL_DIR"
+assert_contains "$PREVIEW_EN/static-sites-backup.sh" "index.html" "static backup checks index.html"
+assert_contains "$PREVIEW_PL/static-sites-backup.sh" 'source "$HOME/scripts/wsms-config.sh"' "PL static backup sources config"
+assert_contains "$PREVIEW_PL/static-sites-backup.sh" "BACKUP_FULL_DIR" "PL static backup uses BACKUP_FULL_DIR"
+assert_contains "$PREVIEW_PL/static-sites-backup.sh" "index.html" "PL static backup checks index.html"
 
 
 # =================================================================
@@ -471,6 +481,48 @@ if [ -f "$TEST_SMTP_HOME/.mailrc" ]; then
 else
     fail "ensure_msmtprc: ~/.mailrc not created"
 fi
+
+# =================================================================
+# 17. BEHAVIORAL — static-sites-backup filters static sites
+# =================================================================
+echo -e "\n${CYAN}[17] Behavioral: static-sites-backup filters static sites${NC}"
+
+STATIC_TEST_HOME="$TMP_DIR/static_home"
+STATIC_SITES_DIR="$STATIC_TEST_HOME/sites"
+mkdir -p "$STATIC_TEST_HOME/scripts" "$STATIC_TEST_HOME/backups-full" "$STATIC_SITES_DIR/wp_site" "$STATIC_SITES_DIR/html_site"
+
+touch "$STATIC_SITES_DIR/wp_site/wp-config.php"
+touch "$STATIC_SITES_DIR/html_site/index.html"
+echo "<h1>Hello Static</h1>" > "$STATIC_SITES_DIR/html_site/index.html"
+
+cat > "$STATIC_TEST_HOME/scripts/wsms-config.sh" << CONF
+SITES=(
+    "my-wp.com:$STATIC_SITES_DIR/wp_site:www-data"
+    "my-html.com:$STATIC_SITES_DIR/html_site:www-data"
+)
+BACKUP_FULL_DIR="$STATIC_TEST_HOME/backups-full"
+RETENTION_FULL=30
+LOG_FULL_BACKUP="$STATIC_TEST_HOME/backup.log"
+wsms_init_live_logging() { :; }
+CONF
+
+HOME="$STATIC_TEST_HOME" bash "$PREVIEW_EN/static-sites-backup.sh" all >/dev/null 2>&1 || true
+
+html_archive_count=$(find "$STATIC_TEST_HOME/backups-full" -name "static-my-html.com-*.tar.gz" 2>/dev/null | wc -l | tr -d ' ')
+wp_archive_count=$(find "$STATIC_TEST_HOME/backups-full" -name "static-my-wp.com-*.tar.gz" 2>/dev/null | wc -l | tr -d ' ')
+
+[ "$html_archive_count" -eq 1 ] \
+    && pass "static-sites-backup: archive created for static HTML site" \
+    || fail "static-sites-backup: static HTML site archive missing"
+
+[ "$wp_archive_count" -eq 0 ] \
+    && pass "static-sites-backup: WordPress site skipped correctly" \
+    || fail "static-sites-backup: WordPress site should not have static archive"
+
+list_output=$(HOME="$STATIC_TEST_HOME" bash "$PREVIEW_EN/static-sites-backup.sh" list 2>&1 || true)
+echo "$list_output" | grep -q "static-my-html.com" \
+    && pass "static-sites-backup: list mode displays static archive" \
+    || fail "static-sites-backup: list mode missing archive"
 
 # =================================================================
 # SUMMARY
