@@ -1,6 +1,6 @@
 #!/bin/bash
 # =================================================================
-# WSMS PRO v4.3 - EXPORT RUNTIME MODULES FROM INSTALLERS
+# WSMS PRO v4.5.0 - EXPORT RUNTIME MODULES FROM INSTALLERS
 # Usage: ./tools/wsms-export-runtime-scripts.sh [output_dir] [--only script.sh] [--only script2.sh]
 #    or: ./tools/wsms-export-runtime-scripts.sh [output_dir] [--only script1.sh,script2.sh,...]
 # =================================================================

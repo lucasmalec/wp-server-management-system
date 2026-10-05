@@ -1,6 +1,6 @@
 # WSMS PRO - WordPress Server Management System
 
-**Version:** 4.4.3 | **Status:** Production Ready | **License:** MIT | **Author:** [Lukasz Malec](https://github.com/lucasmalec) (<github@lucasmalec.com>) | [![ORCID](https://img.shields.io/badge/ORCID-0009--0004--3522--0828-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0009-0004-3522-0828) | [![Cite](https://img.shields.io/badge/Cite-CITATION.cff-blue.svg)](CITATION.cff) | [lucasmalec.com](https://lucasmalec.com)
+**Version:** 4.5.0 | **Status:** Production Ready | **License:** MIT | **Author:** [Lukasz Malec](https://github.com/lucasmalec) (<github@lucasmalec.com>) | [![ORCID](https://img.shields.io/badge/ORCID-0009--0004--3522--0828-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0009-0004-3522-0828) | [![Cite](https://img.shields.io/badge/Cite-CITATION.cff-blue.svg)](CITATION.cff) | [lucasmalec.com](https://lucasmalec.com)
 
 WSMS PRO automates WordPress fleet operations on Ubuntu with backup, maintenance, security scans, rollback, and centralized logging.
 
@@ -22,7 +22,8 @@ Deployment status:
 WSMS PRO is installer-centric.
 
 - Primary source of truth: `installers/install_wsms.sh` and `installers/install_wsms_pl.sh`
-- Runtime scripts in `~/scripts/` are generated during installation
+- Central enterprise layout installed in `$HOME/wsms_system/` (`scripts/` and `docs/`)
+- Persistent symlink `~/scripts -> ~/wsms_system/scripts` guarantees zero-downtime backward compatibility
 - Repository preview scripts in `scripts/runtime-preview/` are generated from installer deploy blocks
 
 This means you can work on a single extracted script for convenience, but final canonical logic still lives in installer deploy blocks.
@@ -84,6 +85,18 @@ Pre-push check (mandatory):
 2. `git diff --staged`
 3. verify staged content contains no sensitive/internal data
 4. if uncertain, move the material to `INTERNAL/`, `INTERNAL_ORG/`, or `PRIVATE/` instead of publishing
+
+## What's New in v4.5.0
+
+- **Enterprise Directory Layout (`~/wsms_system/`)**: Centralized server management into a clean `$HOME/wsms_system/` hierarchy with separate `scripts/` (modules & config) and `docs/` (guides, manuals, changelog) subdirectories. Full backward compatibility is guaranteed through an automatic symlink `~/scripts -> ~/wsms_system/scripts`.
+- **Zero-Trust Multi-Tenant User Isolation**: Every managed site defined in `SITES` (both WordPress and Static HTML) uses its own dedicated Linux system user. The permission orchestrator (`wp-fix-perms`) automatically provisions missing system accounts (`useradd -r -s /usr/sbin/nologin -d ... -M -g www-data "$user"`) to eliminate cross-site lateral movement.
+- **Specialized Permissions (CMS vs Static)**: Applies tailored permission baselines:
+  - **WordPress**: Directories `775` (with `2775` SGID on `wp-content`), files `664`, and `wp-config.php` secured at `640` with `FS_METHOD direct`.
+  - **Static HTML**: Directories `755` and files `644`, guaranteeing safe Nginx/Apache read access without privilege escalation.
+- **Hybrid Fleet Auto-Detection**: Dynamic runtime recognition of WordPress (`wp-config.php`) vs Static HTML (`index.html`/`index.htm`) across all monitoring, audit, backup, and maintenance scripts without requiring extra config flags.
+- **Dedicated Static Site Backup Module (`static-sites-backup.sh`)**: Archives static HTML web roots into `$BACKUP_FULL_DIR/static-$name-$TS.tar.gz` with full retention management.
+- **Navigation & Operational Aliases**: Added `wsms-dir` (`cd ~/wsms_system && ls -la`), `wsms-docs` (`ls -la ~/wsms_system/docs`), and `wp-backup-static` across Bash and Fish.
+- **Automated Test Suite Expansion**: Expanded `tests/test_suite.sh` to 248 passing checks with 100% pass rate.
 
 ## What's New in v4.4.3
 
@@ -470,7 +483,7 @@ If you use or reference WSMS PRO in your research, infrastructure, or technical 
   author = {Malec, Lukasz},
   title = {WSMS PRO - WordPress Server Management System},
   year = {2026},
-  version = {4.4.3},
+  version = {4.5.0},
   url = {https://github.com/lucasmalec/wp-server-management-system},
   note = {ORCID: 0009-0004-3522-0828}
 }

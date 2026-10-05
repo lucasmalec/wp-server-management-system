@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================
-# 🧹 WSMS PRO v4.3 - UNIVERSAL UNINSTALLER
-# Version: 1.1 | Works in any shell
+# 🧹 WSMS PRO v4.5.0 - UNIVERSAL UNINSTALLER
+# Version: 1.2 | Works in any shell
 # Description: Completely removes WSMS PRO from the system
 # Usage: ./wsms-uninstall.sh [--force] [--dry-run]
 # =================================================================
@@ -20,10 +20,10 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-WSMS_BASH_START="# >>> WSMS PRO v4.3 BASH >>>"
-WSMS_BASH_END="# <<< WSMS PRO v4.3 BASH <<<"
-WSMS_FISH_START="# >>> WSMS PRO v4.3 FISH >>>"
-WSMS_FISH_END="# <<< WSMS PRO v4.3 FISH <<<"
+WSMS_BASH_START="# >>> WSMS PRO v4.5.0 BASH >>>"
+WSMS_BASH_END="# <<< WSMS PRO v4.5.0 BASH <<<"
+WSMS_FISH_START="# >>> WSMS PRO v4.5.0 FISH >>>"
+WSMS_FISH_END="# <<< WSMS PRO v4.5.0 FISH <<<"
 WSMS_HOSTS_START="# >>> WSMS LOCAL HOSTS >>>"
 WSMS_HOSTS_END="# <<< WSMS LOCAL HOSTS <<<"
 
@@ -49,7 +49,7 @@ sed_in_place() {
 }
 
 echo -e "${CYAN}==========================================================${NC}"
-echo -e "${CYAN}   🧹 WSMS PRO v4.3 - UNIVERSAL UNINSTALLER                 ${NC}"
+echo -e "${CYAN}   🧹 WSMS PRO v4.5.0 - UNIVERSAL UNINSTALLER                 ${NC}"
 echo -e "${CYAN}   Completely removes WSMS from the system                  ${NC}"
 echo -e "${CYAN}==========================================================${NC}"
 

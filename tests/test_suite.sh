@@ -7,7 +7,7 @@
 set -euo pipefail
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
-echo -e "${YELLOW}🧪 WSMS PRO TEST SUITE v4.3${NC}"
+echo -e "${YELLOW}🧪 WSMS PRO TEST SUITE v4.5.0${NC}"
 echo "=========================================================="
 
 TESTS_PASSED=0
@@ -104,7 +104,7 @@ for installer in "$ROOT/installers/install_wsms.sh" "$ROOT/installers/install_ws
     assert_contains "$installer" "wp-backup-static"                       "wp-backup-static in $base"
     assert_contains "$installer" "static-sites-backup.sh"                 "static-sites-backup in $base"
     assert_contains "$installer" "mysql-backup-site"                      "mysql-backup-site in $base"
-    assert_contains "$installer" "WSMS PRO v4"                            "version marker in $base"
+    assert_contains "$installer" "WSMS PRO v4.5.0"                        "version marker in $base"
     assert_contains "$installer" "/var/log/wsms"                          "/var/log/wsms in $base"
     assert_contains "$installer" "/var/quarantine"                        "/var/quarantine in $base"
     assert_contains "$installer" "CRONTAB"                                "crontab block in $base"
