@@ -1629,11 +1629,8 @@ for site in "${SITES[@]}"; do
         
         # Set ACL for backup access if available
         if command -v setfacl &>/dev/null; then
-            sudo setfacl -R -m "u:$USER:r-x" "$path" 2>/dev/null || true
-            # wp-config.php must not have execute bit — override ACL to r-- so stat reports 640 not 650
-            if [ -f "$path/wp-config.php" ]; then
-                sudo setfacl -m "u:$USER:r--" "$path/wp-config.php" 2>/dev/null || true
-            fi
+            sudo find "$path" -type d -exec setfacl -m "u:$USER:r-x" {} + 2>/dev/null || true
+            sudo find "$path" -type f -exec setfacl -m "u:$USER:r--" {} + 2>/dev/null || true
             log "   ✅ ACL set for user $USER"
         fi
         

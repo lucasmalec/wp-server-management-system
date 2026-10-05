@@ -1562,11 +1562,8 @@ for site in "${SITES[@]}"; do
         
         # Ustaw ACL dla dostępu backupów jeśli dostępne
         if command -v setfacl &>/dev/null; then
-            sudo setfacl -R -m "u:$USER:r-x" "$path" 2>/dev/null || true
-            # wp-config.php nie może mieć bitu execute — nadpisz ACL na r-- żeby stat pokazywał 640, nie 650
-            if [ -f "$path/wp-config.php" ]; then
-                sudo setfacl -m "u:$USER:r--" "$path/wp-config.php" 2>/dev/null || true
-            fi
+            sudo find "$path" -type d -exec setfacl -m "u:$USER:r-x" {} + 2>/dev/null || true
+            sudo find "$path" -type f -exec setfacl -m "u:$USER:r--" {} + 2>/dev/null || true
             log "   ✅ ACL ustawione dla użytkownika $USER"
         fi
         

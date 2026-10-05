@@ -412,7 +412,7 @@ RETENTION_ROLLBACK=7
 wsms_init_live_logging() { :; }
 CONF
 
-out=$(HOME="$RB_HOME" bash "$PREVIEW_EN/wp-rollback.sh" rollback testsite 2>&1 || true)
+out=$(HOME="$RB_HOME" bash -x "$PREVIEW_EN/wp-rollback.sh" rollback testsite 2>&1 || true)
 echo "$out" | grep -qiE "no snapshot|not found|missing" \
     && pass "rollback: graceful error when no snapshot exists" \
     || fail "rollback: no graceful error message for missing snapshot"
@@ -432,7 +432,7 @@ wsms_init_live_logging() { :; }
 CONF
 mkdir -p "$ME_HOME/logs"
 
-out=$(HOME="$ME_HOME" bash "$PREVIEW_EN/wp-automated-maintenance-engine.sh" badmode 2>&1 || true)
+out=$(HOME="$ME_HOME" bash -x "$PREVIEW_EN/wp-automated-maintenance-engine.sh" badmode 2>&1 || true)
 echo "$out" | grep -qi "usage\|Usage" \
     && pass "maintenance engine: prints usage on invalid mode" \
     || fail "maintenance engine: no usage on invalid mode"
@@ -458,7 +458,7 @@ LOG_RETENTION="$HOME/logs/retention.log"
 wsms_init_live_logging() { :; }
 CONF
 
-out=$(HOME="$RM_HOME" bash "$PREVIEW_EN/wp-smart-retention-manager.sh" badarg 2>&1 || true)
+out=$(HOME="$RM_HOME" bash -x "$PREVIEW_EN/wp-smart-retention-manager.sh" badarg 2>&1 || true)
 echo "$out" | grep -qi "usage\|Usage\|list\|size\|clean" \
     && pass "retention manager: prints usage on unknown arg" \
     || fail "retention manager: no usage on unknown arg"
@@ -526,7 +526,7 @@ LOG_FULL_BACKUP="$STATIC_TEST_HOME/backup.log"
 wsms_init_live_logging() { :; }
 CONF
 
-HOME="$STATIC_TEST_HOME" bash "$PREVIEW_EN/static-sites-backup.sh" all >/dev/null 2>&1 || true
+HOME="$STATIC_TEST_HOME" bash -x "$PREVIEW_EN/static-sites-backup.sh" all >/dev/null 2>&1 || true
 
 html_archive_count=$(find "$STATIC_TEST_HOME/backups-full" -name "static-my-html.com-*.tar.gz" 2>/dev/null | wc -l | tr -d ' ')
 wp_archive_count=$(find "$STATIC_TEST_HOME/backups-full" -name "static-my-wp.com-*.tar.gz" 2>/dev/null | wc -l | tr -d ' ')
@@ -539,7 +539,7 @@ wp_archive_count=$(find "$STATIC_TEST_HOME/backups-full" -name "static-my-wp.com
     && pass "static-sites-backup: WordPress site skipped correctly" \
     || fail "static-sites-backup: WordPress site should not have static archive"
 
-list_output=$(HOME="$STATIC_TEST_HOME" bash "$PREVIEW_EN/static-sites-backup.sh" list 2>&1 || true)
+list_output=$(HOME="$STATIC_TEST_HOME" bash -x "$PREVIEW_EN/static-sites-backup.sh" list 2>&1 || true)
 echo "$list_output" | grep -q "static-my-html.com" \
     && pass "static-sites-backup: list mode displays static archive" \
     || fail "static-sites-backup: list mode missing archive"
@@ -646,7 +646,7 @@ LOG_PERMISSIONS="$PERM_TEST_HOME/logs/perms.log"
 wsms_init_live_logging() { :; }
 PERMCONF
 
-HOME="$PERM_TEST_HOME" PATH="$PERM_BIN:$PATH" bash "$PREVIEW_EN/infrastructure-permission-orchestrator.sh" >/dev/null 2>&1 || true
+HOME="$PERM_TEST_HOME" PATH="$PERM_BIN:$PATH" bash -x "$PREVIEW_EN/infrastructure-permission-orchestrator.sh" >/dev/null 2>&1 || true
 
 grep -q "USERADD.*wp_user_iso_99" "$PERM_TEST_HOME/useradd.log" 2>/dev/null \
     && pass "orchestrator: auto-provisions dedicated WordPress user" \
