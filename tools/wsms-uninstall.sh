@@ -131,10 +131,19 @@ if [ -f "$HOME/.bash_profile" ]; then
 fi
 
 # ============================================
-# 3. REMOVE SCRIPTS
+# 3. REMOVE WSMS SYSTEM & SCRIPTS
 # ============================================
-echo -e "\n${YELLOW}📂 Removing scripts...${NC}"
-if [ -d "$HOME/scripts" ]; then
+echo -e "\n${YELLOW}📂 Removing WSMS system files and scripts...${NC}"
+if [ -d "$HOME/wsms_system" ]; then
+    run_cmd mkdir -p "$HOME/wsms-backup-old"
+    run_cmd cp -r "$HOME/wsms_system" "$HOME/wsms-backup-old/wsms_system.$TIMESTAMP"
+    run_cmd rm -rf "$HOME/wsms_system"
+    echo -e "   ${GREEN}✅ ~/wsms_system removed (backup saved)${NC}"
+fi
+if [ -L "$HOME/scripts" ]; then
+    run_cmd rm -f "$HOME/scripts"
+    echo -e "   ${GREEN}✅ ~/scripts symlink removed${NC}"
+elif [ -d "$HOME/scripts" ]; then
     run_cmd mkdir -p "$HOME/scripts-backup-old"
     run_cmd cp -r "$HOME/scripts" "$HOME/scripts-backup-old/scripts.$TIMESTAMP"
     run_cmd rm -rf "$HOME/scripts"
@@ -214,7 +223,7 @@ fi
 # 6b. REMOVE MANUAL SCRIPT COPY DIRECTORIES
 # ============================================
 echo -e "\n${YELLOW}📂 Script copy/backup directories...${NC}"
-SCRIPT_COPY_DIRS=("$HOME/scripts-backup-old" "$HOME/scripts-backup" "$HOME/scripts_copy_"*)
+SCRIPT_COPY_DIRS=("$HOME/scripts-backup-old" "$HOME/scripts-backup" "$HOME/scripts_copy_"* "$HOME/wsms-backup-old")
 
 if [ "$FORCE_MODE" = true ]; then
     removed_script_dirs=0

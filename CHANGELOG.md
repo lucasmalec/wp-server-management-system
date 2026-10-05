@@ -5,10 +5,20 @@ All notable changes to WSMS PRO are documented in this file.
 ## [4.5.0] - 2026-10-05
 
 ### Added
-- **Hybrid Fleet Auto-Detection (WordPress + Static HTML):** The system now dynamically detects whether managed sites configured in `SITES` are WordPress instances (`wp-config.php`) or static HTML sites (`index.html`/`index.htm`), eliminating false `CRITICAL`/`KRYTYCZNY` error flags across all diagnostic commands.
+- **Enterprise Directory Architecture (`~/wsms_system/`):** Restructured WSMS server layout into a unified enterprise hierarchy at `$HOME/wsms_system/` with dedicated subdirectories:
+  - `$HOME/wsms_system/scripts/`: Centralized operational modules and configuration (`wsms-config.sh`).
+  - `$HOME/wsms_system/docs/`: Integrated system documentation, deployment guides, mail setup manuals, and references.
+  - **100% Backward Compatibility:** Automatically creates and maintains persistent symlink `$HOME/scripts -> $HOME/wsms_system/scripts`, ensuring existing crontabs, external tools, and operator workflows continue operating without interruption.
+- **Strict Multi-tenant User Isolation & Auto-Provisioning:** `infrastructure-permission-orchestrator.sh` (`wp-fix-perms`) enforces zero-trust site isolation. Every managed site in `SITES` (WordPress and Static HTML) uses its own dedicated Linux system user. The orchestrator automatically checks and provisions missing system accounts (`useradd -r -s /usr/sbin/nologin -d ... -M -g www-data "$user"`).
+- **Static HTML vs WordPress Permission Orchestration:** Differentiates permissions based on site architecture:
+  - **WordPress:** Directories `775` (with `2775` SGID on `wp-content`), files `664`, and `wp-config.php` secured at `640` with direct filesystem method enabled (`FS_METHOD direct`).
+  - **Static HTML:** Directories `755` and files `644`, guaranteeing Nginx/Apache read access while preventing cross-tenant privilege escalation.
+- **Enterprise Navigation Aliases:** Added `wsms-dir` (`cd ~/wsms_system && ls -la`) and `wsms-docs` (`ls -la ~/wsms_system/docs`) across Bash (`~/.bashrc`) and Fish (`~/.config/fish/config.fish`).
+- **Universal Uninstaller Modernization (`tools/wsms-uninstall.sh`):** Enhanced uninstaller to cleanly back up and remove `~/wsms_system`, remove `~/scripts` symlinks, and purge backup directories with `--force`.
+- **Hybrid Fleet Auto-Detection (WordPress + Static HTML):** The system dynamically detects whether managed sites configured in `SITES` are WordPress instances (`wp-config.php`) or static HTML sites (`index.html`/`index.htm`), eliminating false `CRITICAL`/`KRYTYCZNY` error flags across all diagnostic commands.
 - **Dedicated Static Sites Backup Script (`static-sites-backup.sh`):** Added a new core backup module that archives static HTML web roots directly into `$BACKUP_FULL_DIR/static-$name-$TS.tar.gz` with full retention and cleanup support.
 - **Shell Aliases for Static Sites:** Added `wp-backup-static [site]` and `wsms-backup-static` to both Bash (`~/.bashrc`) and Fish (`~/.config/fish/config.fish`).
-- **Behavioral Test Suite Suite Expansion:** Added automated test assertions and behavioral testing for static site backups and hybrid fleet discovery, increasing test suite count to 225 passing checks.
+- **Comprehensive Test Suite Expansion:** Added automated behavioral assertions for uninstaller `wsms_system` cleanup, dedicated user auto-provisioning, and permission orchestration, expanding the test suite to 248 tests (100% pass rate).
 
 ### Changed
 - `server-health-audit.sh` (`wp-health` / `system-diag`): Distinguishes PHP-FPM WordPress users from Static HTML web users and outputs dedicated static site diagnostic telemetry (disk size, HTML engine-free status).
@@ -18,7 +28,7 @@ All notable changes to WSMS PRO are documented in this file.
 - `mysql-backup-manager.sh` (`mysql-backup`): Gracefully skips static HTML sites without databases during batch backups, and informs the operator when targeted individually.
 - `wp-essential-assets-backup.sh` (`wp-backup-lite`): Archives complete site assets for static sites while archiving `wp-content` + DB for WordPress sites.
 - `wp-cli-infrastructure-validator.sh` (`wp-cli-validator`): Accurately marks static HTML sites as skipped without generating false failures.
-- `wp-help.sh`: Updated command index with `wp-backup-static`.
+- `wp-help.sh`: Updated command index with `wp-backup-static` and documentation references.
 
 ## [4.4.4] - 2026-09-23
 

@@ -155,9 +155,14 @@ validate_config
 # ==================== FAZA 1: INFRASTRUKTURA ====================
 log_step "Faza 1: Inicjalizacja katalogów"
 
+WSMS_DIR="$HOME/wsms_system"
+WSMS_SCRIPTS_DIR="$WSMS_DIR/scripts"
+WSMS_DOCS_DIR="$WSMS_DIR/docs"
+
 # Główne katalogi
 DIRS=(
-    "$HOME/scripts"
+    "$WSMS_SCRIPTS_DIR"
+    "$WSMS_DOCS_DIR"
     "$HOME/backups-lite"
     "$HOME/backups-full"
     "$HOME/backups-manual"
@@ -168,6 +173,28 @@ DIRS=(
 for dir in "${DIRS[@]}"; do
     mkdir -p "$dir" && log_success "$dir"
 done
+
+# Bezpieczna migracja istniejących skryptów z ~/scripts i utworzenie symlinku
+if [ -d "$HOME/scripts" ] && [ ! -L "$HOME/scripts" ]; then
+    log_info "Migracja istniejących skryptów z ~/scripts do ~/wsms_system/scripts..."
+    cp -rn "$HOME/scripts/"* "$WSMS_SCRIPTS_DIR/" 2>/dev/null || true
+    mv "$HOME/scripts" "$HOME/scripts.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+fi
+ln -sfn "$WSMS_SCRIPTS_DIR" "$HOME/scripts"
+log_success "Symlink kompatybilności: ~/scripts -> ~/wsms_system/scripts"
+
+# Kopiowanie dokumentacji do ~/wsms_system/docs/
+REPO_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -d "$REPO_SRC_DIR/docs" ]; then
+    cp -r "$REPO_SRC_DIR/docs/"* "$WSMS_DOCS_DIR/" 2>/dev/null || true
+fi
+if [ -f "$REPO_SRC_DIR/README.md" ]; then
+    cp "$REPO_SRC_DIR/README.md" "$WSMS_DOCS_DIR/README.md" 2>/dev/null || true
+fi
+if [ -f "$REPO_SRC_DIR/CHANGELOG.md" ]; then
+    cp "$REPO_SRC_DIR/CHANGELOG.md" "$WSMS_DOCS_DIR/CHANGELOG.md" 2>/dev/null || true
+fi
+log_success "Dokumentacja zainstalowana w ~/wsms_system/docs/"
 
 # Zorganizowane katalogi logów systemowych (/var/log/wsms/)
 LOG_DIRS=(
@@ -254,10 +281,10 @@ echo -e "\n${BLUE}📝 Faza 3: Generowanie konfiguracji centralnej...${NC}"
 
 HOME_EXPANDED="$HOME"
 
-cat > "$HOME/scripts/wsms-config.sh" << 'EOF'
+cat > "$WSMS_SCRIPTS_DIR/wsms-config.sh" << 'EOF'
 #!/bin/bash
 # =================================================================
-# WSMS PRO v4.4.3 - KONFIGURACJA CENTRALNA
+# WSMS PRO v4.5.0 - KONFIGURACJA CENTRALNA
 # Wygenerowane przez instalator - NIE EDYTUJ RĘCZNIE
 # =================================================================
 
@@ -304,7 +331,9 @@ SMTP_TLS="on"
 SMTP_STARTTLS="on"
 
 # ==================== ŚCIEŻKI KATALOGÓW ====================
-SCRIPT_DIR="$HOME/scripts"
+WSMS_DIR="$HOME/wsms_system"
+SCRIPT_DIR="$WSMS_DIR/scripts"
+DOCS_DIR="$WSMS_DIR/docs"
 
 # Katalogi backupów
 BACKUP_LITE_DIR="$HOME/backups-lite"
@@ -421,28 +450,28 @@ awk '
     in_sites && /^\)/ { in_sites=0; next }
     in_sites { next }
     { print }
-' "$HOME/scripts/wsms-config.sh" > "$HOME/scripts/wsms-config.sh.tmp" \
-    && mv "$HOME/scripts/wsms-config.sh.tmp" "$HOME/scripts/wsms-config.sh"
+' "$WSMS_SCRIPTS_DIR/wsms-config.sh" > "$WSMS_SCRIPTS_DIR/wsms-config.sh.tmp" \
+    && mv "$WSMS_SCRIPTS_DIR/wsms-config.sh.tmp" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
 rm -f "$_SITES_TMP"
-sed -i "s|NAS_HOST=\"ZMIEN_MNIE\"|NAS_HOST=\"$NAS_HOST\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|NAS_PORT=\"22\"|NAS_PORT=\"$NAS_PORT\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|NAS_USER=\"ZMIEN_MNIE\"|NAS_USER=\"$NAS_USER\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|NAS_PATH=\"ZMIEN_MNIE\"|NAS_PATH=\"$NAS_PATH\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|NAS_SSH_KEY=\"ZMIEN_MNIE\"|NAS_SSH_KEY=\"$NAS_SSH_KEY\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|ALERT_EMAIL=\"\"|ALERT_EMAIL=\"$ALERT_EMAIL\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|ALERT_ON_FAILURE=\"yes\"|ALERT_ON_FAILURE=\"$ALERT_ON_FAILURE\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|ALERT_ON_SUCCESS=\"no\"|ALERT_ON_SUCCESS=\"$ALERT_ON_SUCCESS\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_ENABLED=\"no\"|SMTP_ENABLED=\"$SMTP_ENABLED\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_HOST=\"\"|SMTP_HOST=\"$SMTP_HOST\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_PORT=\"587\"|SMTP_PORT=\"$SMTP_PORT\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_USER=\"\"|SMTP_USER=\"$SMTP_USER\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_PASS=\"\"|SMTP_PASS=\"$SMTP_PASS\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_FROM=\"\"|SMTP_FROM=\"$SMTP_FROM\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_TLS=\"on\"|SMTP_TLS=\"$SMTP_TLS\"|" "$HOME/scripts/wsms-config.sh"
-sed -i "s|SMTP_STARTTLS=\"on\"|SMTP_STARTTLS=\"$SMTP_STARTTLS\"|" "$HOME/scripts/wsms-config.sh"
+sed -i "s|NAS_HOST=\"ZMIEN_MNIE\"|NAS_HOST=\"$NAS_HOST\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|NAS_PORT=\"22\"|NAS_PORT=\"$NAS_PORT\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|NAS_USER=\"ZMIEN_MNIE\"|NAS_USER=\"$NAS_USER\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|NAS_PATH=\"ZMIEN_MNIE\"|NAS_PATH=\"$NAS_PATH\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|NAS_SSH_KEY=\"ZMIEN_MNIE\"|NAS_SSH_KEY=\"$NAS_SSH_KEY\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|ALERT_EMAIL=\"\"|ALERT_EMAIL=\"$ALERT_EMAIL\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|ALERT_ON_FAILURE=\"yes\"|ALERT_ON_FAILURE=\"$ALERT_ON_FAILURE\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|ALERT_ON_SUCCESS=\"no\"|ALERT_ON_SUCCESS=\"$ALERT_ON_SUCCESS\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_ENABLED=\"no\"|SMTP_ENABLED=\"$SMTP_ENABLED\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_HOST=\"\"|SMTP_HOST=\"$SMTP_HOST\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_PORT=\"587\"|SMTP_PORT=\"$SMTP_PORT\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_USER=\"\"|SMTP_USER=\"$SMTP_USER\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_PASS=\"\"|SMTP_PASS=\"$SMTP_PASS\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_FROM=\"\"|SMTP_FROM=\"$SMTP_FROM\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_TLS=\"on\"|SMTP_TLS=\"$SMTP_TLS\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+sed -i "s|SMTP_STARTTLS=\"on\"|SMTP_STARTTLS=\"$SMTP_STARTTLS\"|" "$WSMS_SCRIPTS_DIR/wsms-config.sh"
 
-chmod +x "$HOME/scripts/wsms-config.sh"
-source "$HOME/scripts/wsms-config.sh"
+chmod +x "$WSMS_SCRIPTS_DIR/wsms-config.sh"
+source "$WSMS_SCRIPTS_DIR/wsms-config.sh"
 echo -e "${GREEN}✅ Konfiguracja wygenerowana${NC}"
 
 # ==================== FAZA 4: WDROŻENIE SKRYPTÓW ====================
@@ -450,7 +479,7 @@ echo -e "\n${BLUE}📝 Faza 4: Wdrażanie 20 modułów operacyjnych...${NC}"
 
 deploy() {
     echo -e "   📦 ${CYAN}$1${NC}"
-    local target_script="$HOME/scripts/$1"
+    local target_script="$WSMS_SCRIPTS_DIR/$1"
     cat > "$target_script"
 
     # Wstrzyknij standardowy bootstrap logowania do skryptów WSMS.
@@ -1431,25 +1460,45 @@ for site in "${SITES[@]}"; do
             GRUPA_WWW="$user"
         fi
 
-        # Właściciel: operator systemu + grupa serwera www
+        # Weryfikacja i automatyczne tworzenie dedykowanego użytkownika izolacji jeśli nie istnieje
+        if ! id "$user" &>/dev/null; then
+            log "   👤 Dedykowany użytkownik $user nie istnieje — automatyczne tworzenie konta systemowego..."
+            site_parent_dir="$(dirname "$path")"
+            if sudo useradd -r -s /usr/sbin/nologin -d "$site_parent_dir" -M -g "$GRUPA_WWW" "$user" 2>/dev/null || \
+               sudo useradd -r -s /usr/sbin/nologin -M -g "$GRUPA_WWW" "$user" 2>/dev/null; then
+                log "   ${GREEN}✅ Utworzono dedykowanego użytkownika: $user (grupa: $GRUPA_WWW)${NC}"
+            else
+                log "   ${RED}⚠️ Nie udało się utworzyć użytkownika $user — błąd uprawnień systemowych${NC}"
+            fi
+        fi
+
+        # Właściciel: dedykowany użytkownik witryny + grupa serwera www
         sudo chown -R "$user":"$GRUPA_WWW" "$path" 2>/dev/null
         
-        # Uprawnienia katalogów: 775 z SGID na wp-content dla dziedziczenia grupy
-        sudo find "$path" -type d -exec chmod 775 {} \; 2>/dev/null
-        if [ -d "$path/wp-content" ]; then
-            sudo find "$path/wp-content" -type d -exec chmod 2775 {} \; 2>/dev/null
-        fi
-        
-        # Uprawnienia plików: 664
-        sudo find "$path" -type f -exec chmod 664 {} \; 2>/dev/null
-        
-        # Zabezpiecz wp-config.php (640) oraz wymuś FS_METHOD direct (brak pytań o FTP w panelu WP)
+        # Sprawdzenie typu witryny (WordPress vs Statyczny HTML)
         if [ -f "$path/wp-config.php" ]; then
+            # Uprawnienia katalogów: 775 z SGID na wp-content dla dziedziczenia grupy
+            sudo find "$path" -type d -exec chmod 775 {} \; 2>/dev/null
+            if [ -d "$path/wp-content" ]; then
+                sudo find "$path/wp-content" -type d -exec chmod 2775 {} \; 2>/dev/null
+            fi
+            # Uprawnienia plików: 664
+            sudo find "$path" -type f -exec chmod 664 {} \; 2>/dev/null
+            
+            # Zabezpiecz wp-config.php (640) oraz wymuś FS_METHOD direct (brak pytań o FTP w panelu WP)
             sudo chmod 640 "$path/wp-config.php" 2>/dev/null
             if ! grep -q "FS_METHOD" "$path/wp-config.php" 2>/dev/null; then
                 sudo sed -i "/<?php/a define('FS_METHOD', 'direct');" "$path/wp-config.php" 2>/dev/null || true
             fi
             log "   ✅ wp-config.php zabezpieczony (640) & bezpośredni zapis plików włączony"
+        elif [ -f "$path/index.html" ] || [ -f "$path/index.htm" ]; then
+            # Strona statyczna HTML: katalogi 755, pliki 644 (odczyt Nginx)
+            sudo find "$path" -type d -exec chmod 755 {} \; 2>/dev/null
+            sudo find "$path" -type f -exec chmod 644 {} \; 2>/dev/null
+            log "   ✅ Uprawnienia witryny statycznej: katalogi 755, pliki 644 (odczyt Nginx)"
+        else
+            sudo find "$path" -type d -exec chmod 755 {} \; 2>/dev/null
+            sudo find "$path" -type f -exec chmod 644 {} \; 2>/dev/null
         fi
         
         # Zabezpiecz .htaccess
@@ -3276,7 +3325,12 @@ if [ -f "$HOME/.bashrc" ]; then
 # WSMS PRO v4.4.3 - BASH SHELL ALIASES
 # ============================================
 
-export SCRIPTS_DIR="$HOME/scripts"
+export WSMS_DIR="$HOME/wsms_system"
+export SCRIPTS_DIR="$WSMS_DIR/scripts"
+export DOCS_DIR="$WSMS_DIR/docs"
+
+alias wsms-dir='cd $WSMS_DIR && ls -la'
+alias wsms-docs='ls -la $DOCS_DIR'
 
 alias wp-help='bash $SCRIPTS_DIR/wp-help.sh'
 alias system-diag='bash $SCRIPTS_DIR/server-health-audit.sh'
@@ -3434,7 +3488,12 @@ if command -v fish &> /dev/null; then
 # ============================================
 # WSMS PRO v4.4.3 - FISH ALIASES
 # ============================================
-set -gx SCRIPTS_DIR "$HOME/scripts"
+set -gx WSMS_DIR "$HOME/wsms_system"
+set -gx SCRIPTS_DIR "$WSMS_DIR/scripts"
+set -gx DOCS_DIR "$WSMS_DIR/docs"
+
+alias wsms-dir='cd $WSMS_DIR; and ls -la'
+alias wsms-docs='ls -la $DOCS_DIR'
 
 alias wp-help='bash $SCRIPTS_DIR/wp-help.sh'
 alias help-wp='wp-help'
@@ -3591,16 +3650,18 @@ echo -e "${GREEN}✅ Crontab skonfigurowany (9 zadań)${NC}"
 
 # ==================== FAZA 7: UPRAWNIENIA ====================
 log_step "Faza 7: Nadawanie uprawnień skryptom"
-chmod +x "$HOME/scripts/"*.sh 2> /dev/null && log_success "Wszystkie skrypty w ~/scripts/ ustawione jako wykonywalne"
+chmod +x "$WSMS_SCRIPTS_DIR/"*.sh 2> /dev/null && log_success "Wszystkie skrypty w ~/wsms_system/scripts/ ustawione jako wykonywalne"
 echo -e "${GREEN}✅ Uprawnienia nadane${NC}"
 
 # ==================== PODSUMOWANIE ====================
 echo -e "\n${GREEN}==========================================================${NC}"
-echo -e "${GREEN}✅ WSMS PRO v4.4.3 ZAINSTALOWANY POMYŚLNIE!${NC}"
+echo -e "${GREEN}✅ WSMS PRO v4.5.0 ZAINSTALOWANY POMYŚLNIE!${NC}"
 echo -e "${GREEN}==========================================================${NC}"
 echo ""
 echo -e "${YELLOW}📋 Podsumowanie:${NC}"
-echo "   📂 Skrypty: ~/scripts/"
+echo "   📂 Główny folder: ~/wsms_system/"
+echo "   📜 Skrypty: ~/wsms_system/scripts/ (symlink: ~/scripts)"
+echo "   📚 Dokumentacja: ~/wsms_system/docs/"
 echo "   💾 Backupy: ~/backups-lite, ~/backups-full"
 echo "   📸 Rollback: ~/backups-rollback"
 echo "   📝 Logi: /var/log/wsms/ (symlink: ~/logs/wsms/)"
@@ -3614,5 +3675,6 @@ else
 fi
 echo "   wp-status"
 echo "   wp-help"
+echo "   wsms-docs"
 echo ""
 echo -e "${GREEN}✅ Gotowe!${NC}"

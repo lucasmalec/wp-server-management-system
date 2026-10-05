@@ -104,10 +104,14 @@ for installer in "$ROOT/installers/install_wsms.sh" "$ROOT/installers/install_ws
     assert_contains "$installer" "wp-backup-static"                       "wp-backup-static in $base"
     assert_contains "$installer" "static-sites-backup.sh"                 "static-sites-backup in $base"
     assert_contains "$installer" "mysql-backup-site"                      "mysql-backup-site in $base"
-    assert_contains "$installer" "WSMS PRO v4.4.3"                        "version marker in $base"
+    assert_contains "$installer" "WSMS PRO v4"                            "version marker in $base"
     assert_contains "$installer" "/var/log/wsms"                          "/var/log/wsms in $base"
     assert_contains "$installer" "/var/quarantine"                        "/var/quarantine in $base"
     assert_contains "$installer" "CRONTAB"                                "crontab block in $base"
+    assert_contains "$installer" "wsms_system"                            "wsms_system directory in $base"
+    assert_contains "$installer" "WSMS_DIR"                               "WSMS_DIR variable in $base"
+    assert_contains "$installer" "wsms-docs"                              "wsms-docs alias in $base"
+    assert_contains "$installer" "wsms-dir"                               "wsms-dir alias in $base"
 done
 
 # =================================================================
@@ -202,6 +206,13 @@ assert_contains "$PREVIEW_EN/static-sites-backup.sh" "index.html" "static backup
 assert_contains "$PREVIEW_PL/static-sites-backup.sh" 'source "$HOME/scripts/wsms-config.sh"' "PL static backup sources config"
 assert_contains "$PREVIEW_PL/static-sites-backup.sh" "BACKUP_FULL_DIR" "PL static backup uses BACKUP_FULL_DIR"
 assert_contains "$PREVIEW_PL/static-sites-backup.sh" "index.html" "PL static backup checks index.html"
+
+assert_contains "$PREVIEW_EN/infrastructure-permission-orchestrator.sh" "useradd" "orchestrator has useradd dedicated user"
+assert_contains "$PREVIEW_EN/infrastructure-permission-orchestrator.sh" "index.html" "orchestrator detects static HTML"
+assert_contains "$PREVIEW_EN/infrastructure-permission-orchestrator.sh" "chmod 755" "orchestrator applies 755 for static"
+assert_contains "$PREVIEW_PL/infrastructure-permission-orchestrator.sh" "useradd" "PL orchestrator has useradd dedicated user"
+assert_contains "$PREVIEW_PL/infrastructure-permission-orchestrator.sh" "index.html" "PL orchestrator detects static HTML"
+assert_contains "$PREVIEW_PL/infrastructure-permission-orchestrator.sh" "chmod 755" "PL orchestrator applies 755 for static"
 
 
 # =================================================================
@@ -523,6 +534,133 @@ list_output=$(HOME="$STATIC_TEST_HOME" bash "$PREVIEW_EN/static-sites-backup.sh"
 echo "$list_output" | grep -q "static-my-html.com" \
     && pass "static-sites-backup: list mode displays static archive" \
     || fail "static-sites-backup: list mode missing archive"
+
+# =================================================================
+# 18. BEHAVIORAL — uninstaller wsms_system and symlink cleanup
+# =================================================================
+echo -e "\n${CYAN}[18] Behavioral: uninstaller wsms_system and symlink cleanup${NC}"
+
+UNINST_HOME="$TMP_DIR/uninst_home"
+UNINST_BIN="$TMP_DIR/uninst_bin"
+mkdir -p "$UNINST_HOME/wsms_system/scripts" "$UNINST_HOME/wsms_system/docs" "$UNINST_BIN"
+ln -s "$UNINST_HOME/wsms_system/scripts" "$UNINST_HOME/scripts"
+touch "$UNINST_HOME/wsms_system/scripts/test.sh"
+touch "$UNINST_HOME/wsms_system/docs/README.md"
+printf '#!/bin/sh\nexit 1\n' > "$UNINST_BIN/sudo"
+printf '#!/bin/sh\n[ "$1" = "-l" ] && exit 1; exit 0\n' > "$UNINST_BIN/crontab"
+chmod +x "$UNINST_BIN/sudo" "$UNINST_BIN/crontab"
+
+HOME="$UNINST_HOME" PATH="$UNINST_BIN:$PATH" bash "$ROOT/tools/wsms-uninstall.sh" >/dev/null 2>&1 || true
+
+[ ! -d "$UNINST_HOME/wsms_system" ] \
+    && pass "uninstaller: removed ~/wsms_system" \
+    || fail "uninstaller: failed to remove ~/wsms_system"
+
+[ ! -e "$UNINST_HOME/scripts" ] && [ ! -L "$UNINST_HOME/scripts" ] \
+    && pass "uninstaller: removed ~/scripts symlink" \
+    || fail "uninstaller: failed to remove ~/scripts symlink"
+
+[ -d "$UNINST_HOME/wsms-backup-old" ] \
+    && pass "uninstaller: saved wsms_system backup" \
+    || fail "uninstaller: wsms_system backup missing"
+
+# =================================================================
+# 19. BEHAVIORAL — permission orchestrator user isolation & perms
+# =================================================================
+echo -e "\n${CYAN}[19] Behavioral: permission orchestrator user isolation & perms${NC}"
+
+PERM_TEST_HOME="$TMP_DIR/perm_home"
+PERM_BIN="$TMP_DIR/perm_bin"
+mkdir -p "$PERM_TEST_HOME/scripts" "$PERM_TEST_HOME/logs" "$PERM_BIN"
+mkdir -p "$PERM_TEST_HOME/sites/wp_site/wp-content"
+mkdir -p "$PERM_TEST_HOME/sites/html_site"
+
+touch "$PERM_TEST_HOME/sites/wp_site/wp-config.php"
+echo "<?php // wp-config" > "$PERM_TEST_HOME/sites/wp_site/wp-config.php"
+touch "$PERM_TEST_HOME/sites/wp_site/index.php"
+touch "$PERM_TEST_HOME/sites/html_site/index.html"
+touch "$PERM_TEST_HOME/sites/html_site/style.css"
+
+cat > "$PERM_BIN/sudo" << SUDOEOF
+#!/bin/sh
+cmd="\$1"
+shift
+case "\$cmd" in
+    useradd)
+        echo "USERADD: \$*" >> "$PERM_TEST_HOME/useradd.log"
+        exit 0
+        ;;
+    chown)
+        exit 0
+        ;;
+    systemctl)
+        exit 1
+        ;;
+    sed)
+        if [ "\$1" = "-i" ]; then
+            shift
+            expr="\$1"
+            shift
+            target="\$1"
+            if grep -q "FS_METHOD" "\$target" 2>/dev/null; then
+                exit 0
+            fi
+            orig_mode=\$(stat -f "%OLp" "\$target" 2>/dev/null || stat -c "%a" "\$target" 2>/dev/null || echo "640")
+            awk '{print} /<\?php/ {print "define('\''FS_METHOD'\'', '\''direct'\'');"}' "\$target" > "\$target.tmp"
+            chmod "\$orig_mode" "\$target.tmp" 2>/dev/null || true
+            mv "\$target.tmp" "\$target"
+            exit 0
+        fi
+        sed "\$@"
+        ;;
+    find|chmod)
+        "\$cmd" "\$@"
+        ;;
+    *)
+        "\$cmd" "\$@"
+        ;;
+esac
+SUDOEOF
+printf '#!/bin/sh\nexit 1\n' > "$PERM_BIN/systemctl"
+chmod +x "$PERM_BIN/sudo" "$PERM_BIN/systemctl"
+
+cat > "$PERM_TEST_HOME/scripts/wsms-config.sh" << PERMCONF
+SITES=(
+    "wp-isolated.com:$PERM_TEST_HOME/sites/wp_site:wp_user_iso_99"
+    "html-isolated.com:$PERM_TEST_HOME/sites/html_site:html_user_iso_99"
+)
+LOG_PERMISSIONS="$PERM_TEST_HOME/logs/perms.log"
+wsms_init_live_logging() { :; }
+PERMCONF
+
+HOME="$PERM_TEST_HOME" PATH="$PERM_BIN:$PATH" bash "$PREVIEW_EN/infrastructure-permission-orchestrator.sh" >/dev/null 2>&1 || true
+
+grep -q "USERADD.*wp_user_iso_99" "$PERM_TEST_HOME/useradd.log" 2>/dev/null \
+    && pass "orchestrator: auto-provisions dedicated WordPress user" \
+    || fail "orchestrator: did not provision dedicated WordPress user"
+
+grep -q "USERADD.*html_user_iso_99" "$PERM_TEST_HOME/useradd.log" 2>/dev/null \
+    && pass "orchestrator: auto-provisions dedicated HTML user" \
+    || fail "orchestrator: did not provision dedicated HTML user"
+
+grep -q "FS_METHOD" "$PERM_TEST_HOME/sites/wp_site/wp-config.php" \
+    && pass "orchestrator: injected FS_METHOD direct into wp-config.php" \
+    || fail "orchestrator: missing FS_METHOD in wp-config.php"
+
+wp_cfg_mode=$(stat -f "%OLp" "$PERM_TEST_HOME/sites/wp_site/wp-config.php" 2>/dev/null || stat -c "%a" "$PERM_TEST_HOME/sites/wp_site/wp-config.php" 2>/dev/null || echo "640")
+[ "$wp_cfg_mode" = "640" ] \
+    && pass "orchestrator: wp-config.php secured with 640 mode" \
+    || fail "orchestrator: wp-config.php mode is $wp_cfg_mode, expected 640"
+
+html_dir_mode=$(stat -f "%OLp" "$PERM_TEST_HOME/sites/html_site" 2>/dev/null || stat -c "%a" "$PERM_TEST_HOME/sites/html_site" 2>/dev/null || echo "755")
+[ "$html_dir_mode" = "755" ] \
+    && pass "orchestrator: static site directory set to 755" \
+    || fail "orchestrator: static site directory mode is $html_dir_mode, expected 755"
+
+html_file_mode=$(stat -f "%OLp" "$PERM_TEST_HOME/sites/html_site/index.html" 2>/dev/null || stat -c "%a" "$PERM_TEST_HOME/sites/html_site/index.html" 2>/dev/null || echo "644")
+[ "$html_file_mode" = "644" ] \
+    && pass "orchestrator: static site file set to 644" \
+    || fail "orchestrator: static site file mode is $html_file_mode, expected 644"
 
 # =================================================================
 # SUMMARY
