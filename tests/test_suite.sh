@@ -21,6 +21,15 @@ assert_syntax()   { bash -n "$1" 2>/dev/null && pass "syntax: $(basename "$1")" 
 assert_file()     { [ -f "$1" ] && pass "file exists: $1" || fail "file exists: $1"; }
 assert_contains() { grep -q "$2" "$1" && pass "contains '$2' in $(basename "$1")" || fail "contains '$2' in $(basename "$1")"; }
 
+get_file_mode() {
+    local target="$1"
+    if stat -c "%a" "$target" >/dev/null 2>&1; then
+        stat -c "%a" "$target" 2>/dev/null
+    else
+        stat -f "%Lp" "$target" 2>/dev/null
+    fi
+}
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREVIEW_EN="$ROOT/scripts/runtime-preview/en"
 PREVIEW_PL="$ROOT/scripts/runtime-preview/pl"
@@ -478,7 +487,7 @@ mkdir -p "$TEST_SMTP_HOME"
 
 if [ -f "$TEST_SMTP_HOME/.msmtprc" ]; then
     pass "ensure_msmtprc: created ~/.msmtprc"
-    mode=$(stat -f "%OLp" "$TEST_SMTP_HOME/.msmtprc" 2>/dev/null || stat -c "%a" "$TEST_SMTP_HOME/.msmtprc" 2>/dev/null || echo "600")
+    mode=$(get_file_mode "$TEST_SMTP_HOME/.msmtprc")
     [ "$mode" = "600" ] && pass "ensure_msmtprc: ~/.msmtprc has 600 permissions" || fail "ensure_msmtprc: permissions $mode != 600"
     grep -q "host.*smtp.example.com" "$TEST_SMTP_HOME/.msmtprc" && pass "ensure_msmtprc: contains correct host" || fail "ensure_msmtprc: missing host"
     grep -q "password.*secret123" "$TEST_SMTP_HOME/.msmtprc" && pass "ensure_msmtprc: contains password" || fail "ensure_msmtprc: missing password"
@@ -605,7 +614,11 @@ case "\$cmd" in
             if grep -q "FS_METHOD" "\$target" 2>/dev/null; then
                 exit 0
             fi
-            orig_mode=\$(stat -f "%OLp" "\$target" 2>/dev/null || stat -c "%a" "\$target" 2>/dev/null || echo "640")
+            if stat -c "%a" "\$target" >/dev/null 2>&1; then
+                orig_mode=\$(stat -c "%a" "\$target" 2>/dev/null)
+            else
+                orig_mode=\$(stat -f "%Lp" "\$target" 2>/dev/null || echo "640")
+            fi
             awk '{print} /<\?php/ {print "define('\''FS_METHOD'\'', '\''direct'\'');"}' "\$target" > "\$target.tmp"
             chmod "\$orig_mode" "\$target.tmp" 2>/dev/null || true
             mv "\$target.tmp" "\$target"
@@ -647,17 +660,17 @@ grep -q "FS_METHOD" "$PERM_TEST_HOME/sites/wp_site/wp-config.php" \
     && pass "orchestrator: injected FS_METHOD direct into wp-config.php" \
     || fail "orchestrator: missing FS_METHOD in wp-config.php"
 
-wp_cfg_mode=$(stat -f "%OLp" "$PERM_TEST_HOME/sites/wp_site/wp-config.php" 2>/dev/null || stat -c "%a" "$PERM_TEST_HOME/sites/wp_site/wp-config.php" 2>/dev/null || echo "640")
+wp_cfg_mode=$(get_file_mode "$PERM_TEST_HOME/sites/wp_site/wp-config.php")
 [ "$wp_cfg_mode" = "640" ] \
     && pass "orchestrator: wp-config.php secured with 640 mode" \
     || fail "orchestrator: wp-config.php mode is $wp_cfg_mode, expected 640"
 
-html_dir_mode=$(stat -f "%OLp" "$PERM_TEST_HOME/sites/html_site" 2>/dev/null || stat -c "%a" "$PERM_TEST_HOME/sites/html_site" 2>/dev/null || echo "755")
+html_dir_mode=$(get_file_mode "$PERM_TEST_HOME/sites/html_site")
 [ "$html_dir_mode" = "755" ] \
     && pass "orchestrator: static site directory set to 755" \
     || fail "orchestrator: static site directory mode is $html_dir_mode, expected 755"
 
-html_file_mode=$(stat -f "%OLp" "$PERM_TEST_HOME/sites/html_site/index.html" 2>/dev/null || stat -c "%a" "$PERM_TEST_HOME/sites/html_site/index.html" 2>/dev/null || echo "644")
+html_file_mode=$(get_file_mode "$PERM_TEST_HOME/sites/html_site/index.html")
 [ "$html_file_mode" = "644" ] \
     && pass "orchestrator: static site file set to 644" \
     || fail "orchestrator: static site file mode is $html_file_mode, expected 644"
