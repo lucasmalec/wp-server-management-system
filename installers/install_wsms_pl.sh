@@ -683,13 +683,17 @@ sprawdz_dostepnosc_strony() {
     local http_code
     local https_code
 
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "http://$name" 2>/dev/null || echo "000")
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "http://$name" 2>/dev/null || true)
+    http_code="${http_code:-000}"
+    http_code="${http_code: -3}"
     if czy_web_ok "$http_code"; then
         echo "HTTP:$http_code"
         return
     fi
 
-    https_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "https://$name" 2>/dev/null || echo "000")
+    https_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "https://$name" 2>/dev/null || true)
+    https_code="${https_code:-000}"
+    https_code="${https_code: -3}"
     if czy_web_ok "$https_code"; then
         echo "HTTPS:$https_code"
     else
@@ -985,13 +989,17 @@ sprawdz_dostepnosc_strony() {
     local http_code
     local https_code
 
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "http://$domain" 2>/dev/null || echo "000")
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "http://$domain" 2>/dev/null || true)
+    http_code="${http_code:-000}"
+    http_code="${http_code: -3}"
     if czy_web_ok "$http_code"; then
         echo "$http_code"
         return
     fi
 
-    https_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "https://$domain" 2>/dev/null || echo "000")
+    https_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "https://$domain" 2>/dev/null || true)
+    https_code="${https_code:-000}"
+    https_code="${https_code: -3}"
     if czy_web_ok "$https_code"; then
         echo "$https_code"
     else
@@ -1191,9 +1199,13 @@ sprawdz_http_code() {
     local name="$1"
     local http_code
     local https_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "http://$name" 2>/dev/null || echo "000")
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "http://$name" 2>/dev/null || true)
+    http_code="${http_code:-000}"
+    http_code="${http_code: -3}"
     if ! czy_http_ok "$http_code"; then
-        https_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "https://$name" 2>/dev/null || echo "000")
+        https_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "https://$name" 2>/dev/null || true)
+        https_code="${https_code:-000}"
+        https_code="${https_code: -3}"
         if czy_http_ok "$https_code"; then
             http_code="$https_code"
         fi
@@ -1401,9 +1413,13 @@ HTTP_TARGETS=()
 sprawdz_http_code() {
     local name="$1"
     local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "http://$name" 2>/dev/null || echo "000")
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "http://$name" 2>/dev/null || true)
+    http_code="${http_code:-000}"
+    http_code="${http_code: -3}"
     if [ "$http_code" = "000" ]; then
-        http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L "https://$name" 2>/dev/null || echo "000")
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -L --max-time 5 "https://$name" 2>/dev/null || true)
+        http_code="${http_code:-000}"
+        http_code="${http_code: -3}"
     fi
     echo "$http_code"
 }
