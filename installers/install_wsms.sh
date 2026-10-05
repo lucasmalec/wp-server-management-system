@@ -1627,11 +1627,14 @@ for site in "${SITES[@]}"; do
             sudo chmod 644 "$path/.htaccess" 2>/dev/null
         fi
         
-        # Set ACL for backup access if available
-        if command -v setfacl &>/dev/null; then
-            sudo find "$path" -type d -exec setfacl -m "u:$USER:r-x" {} + 2>/dev/null || true
-            sudo find "$path" -type f -exec setfacl -m "u:$USER:r--" {} + 2>/dev/null || true
-            log "   ✅ ACL set for user $USER"
+        # Determine operator user for backup ACL (prefer SUDO_USER if run via sudo, then USER, then id -un)
+        OPERATOR_USER="${SUDO_USER:-${USER:-$(id -un 2>/dev/null || whoami 2>/dev/null || echo "")}}"
+        
+        # Set ACL for backup access if available and operator is a non-root user different from site owner
+        if command -v setfacl &>/dev/null && [ -n "$OPERATOR_USER" ] && [ "$OPERATOR_USER" != "root" ] && [ "$OPERATOR_USER" != "$user" ]; then
+            sudo find "$path" -type d -exec setfacl -m "u:$OPERATOR_USER:r-x" {} + 2>/dev/null || true
+            sudo find "$path" -type f -exec setfacl -m "u:$OPERATOR_USER:r--" {} + 2>/dev/null || true
+            log "   ✅ ACL set for user $OPERATOR_USER"
         fi
         
         log "   ${GREEN}✅ $name permissions fixed${NC}"

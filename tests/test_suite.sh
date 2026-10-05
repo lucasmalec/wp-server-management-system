@@ -626,6 +626,9 @@ case "\$cmd" in
         fi
         sed "\$@"
         ;;
+    setfacl)
+        exit 0
+        ;;
     find|chmod)
         "\$cmd" "\$@"
         ;;
@@ -635,7 +638,8 @@ case "\$cmd" in
 esac
 SUDOEOF
 printf '#!/bin/sh\nexit 1\n' > "$PERM_BIN/systemctl"
-chmod +x "$PERM_BIN/sudo" "$PERM_BIN/systemctl"
+printf '#!/bin/sh\nexit 0\n' > "$PERM_BIN/setfacl"
+chmod +x "$PERM_BIN/sudo" "$PERM_BIN/systemctl" "$PERM_BIN/setfacl"
 
 cat > "$PERM_TEST_HOME/scripts/wsms-config.sh" << PERMCONF
 SITES=(

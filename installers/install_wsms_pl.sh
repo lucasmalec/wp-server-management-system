@@ -1560,11 +1560,14 @@ for site in "${SITES[@]}"; do
             sudo chmod 644 "$path/.htaccess" 2>/dev/null
         fi
         
-        # Ustaw ACL dla dostępu backupów jeśli dostępne
-        if command -v setfacl &>/dev/null; then
-            sudo find "$path" -type d -exec setfacl -m "u:$USER:r-x" {} + 2>/dev/null || true
-            sudo find "$path" -type f -exec setfacl -m "u:$USER:r--" {} + 2>/dev/null || true
-            log "   ✅ ACL ustawione dla użytkownika $USER"
+        # Określ użytkownika operatora dla ACL backupów (preferuj SUDO_USER jeśli uruchomiono przez sudo, potem USER, potem id -un)
+        OPERATOR_USER="${SUDO_USER:-${USER:-$(id -un 2>/dev/null || whoami 2>/dev/null || echo "")}}"
+        
+        # Ustaw ACL dla dostępu backupów jeśli dostępne oraz gdy operator nie jest rootem ani właścicielem strony
+        if command -v setfacl &>/dev/null && [ -n "$OPERATOR_USER" ] && [ "$OPERATOR_USER" != "root" ] && [ "$OPERATOR_USER" != "$user" ]; then
+            sudo find "$path" -type d -exec setfacl -m "u:$OPERATOR_USER:r-x" {} + 2>/dev/null || true
+            sudo find "$path" -type f -exec setfacl -m "u:$OPERATOR_USER:r--" {} + 2>/dev/null || true
+            log "   ✅ ACL ustawione dla użytkownika $OPERATOR_USER"
         fi
         
         log "   ${GREEN}✅ Uprawnienia $name naprawione${NC}"
