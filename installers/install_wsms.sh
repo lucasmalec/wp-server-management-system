@@ -185,14 +185,60 @@ log_success "Compatibility symlink: ~/scripts -> ~/wsms_system/scripts"
 
 # Copy documentation to ~/wsms_system/docs/
 REPO_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# 1. Copy from local repository if available
 if [ -d "$REPO_SRC_DIR/docs" ]; then
     cp -r "$REPO_SRC_DIR/docs/"* "$WSMS_DOCS_DIR/" 2>/dev/null || true
+elif [ -d "$(pwd)/docs" ]; then
+    cp -r "$(pwd)/docs/"* "$WSMS_DOCS_DIR/" 2>/dev/null || true
 fi
+
 if [ -f "$REPO_SRC_DIR/README.md" ]; then
     cp "$REPO_SRC_DIR/README.md" "$WSMS_DOCS_DIR/README.md" 2>/dev/null || true
+elif [ -f "$(pwd)/README.md" ]; then
+    cp "$(pwd)/README.md" "$WSMS_DOCS_DIR/README.md" 2>/dev/null || true
 fi
+
 if [ -f "$REPO_SRC_DIR/CHANGELOG.md" ]; then
     cp "$REPO_SRC_DIR/CHANGELOG.md" "$WSMS_DOCS_DIR/CHANGELOG.md" 2>/dev/null || true
+elif [ -f "$(pwd)/CHANGELOG.md" ]; then
+    cp "$(pwd)/CHANGELOG.md" "$WSMS_DOCS_DIR/CHANGELOG.md" 2>/dev/null || true
+fi
+
+# 2. Fallback: If installer was executed standalone (curl / scp), fetch docs from GitHub repository
+if [ ! -f "$WSMS_DOCS_DIR/README.md" ]; then
+    log_info "Fetching documentation from official GitHub repository..."
+    GH_RAW="https://raw.githubusercontent.com/lucasmalec/wp-server-management-system/main"
+    for doc in "README.md" "CHANGELOG.md"; do
+        curl -sSfL "$GH_RAW/$doc" -o "$WSMS_DOCS_DIR/$doc" 2>/dev/null || true
+    done
+    for doc in "DEPLOYMENT_GUIDE.md" "MAIL_CONFIGURATION.md" "TECHNICAL_REFERENCE.md" "FISH_SETUP_GUIDE.md" "TUTORIAL_ADDING_NEW_SITE_EN.md" "TUTORIAL_DODAWANIE_NOWEJ_STRONY_PL.md" "msmtprc.example" "mailrc.example"; do
+        curl -sSfL "$GH_RAW/docs/$doc" -o "$WSMS_DOCS_DIR/$doc" 2>/dev/null || true
+    done
+fi
+
+# 3. Offline fallback: Ensure ~/wsms_system/docs/ always contains reference manual
+if [ ! -f "$WSMS_DOCS_DIR/README.md" ]; then
+    cat > "$WSMS_DOCS_DIR/README.md" << 'EOFDOC'
+# WSMS PRO v4.5.0 — System Documentation
+
+Operational home: `~/wsms_system/`
+- `~/wsms_system/scripts/` — Operational modules and central configuration (`wsms-config.sh`)
+- `~/wsms_system/docs/` — Reference documentation (alias: `wsms-docs`)
+
+## Key Commands:
+- `wp-help` — Comprehensive reference of all 30+ commands
+- `wp-status` — Quick overview of server, fleet, and storage health
+- `system-diag` — In-depth server health audit
+- `wp-fleet` — Fleet-wide domains, SSL, HTTP, and database telemetry
+- `wp-audit` — Deep multi-instance security and permission audit
+- `wp-fix-perms` — Automated permission orchestration and tenant user provisioning
+- `wp-update` — Automated fleet updates with automatic rollback snapshot
+- `wsms-dir` — Navigate to main system directory
+- `wsms-docs` — List documentation files
+
+GitHub Repository: https://github.com/lucasmalec/wp-server-management-system
+EOFDOC
 fi
 log_success "Documentation installed in ~/wsms_system/docs/"
 
@@ -239,6 +285,10 @@ fi
 
 # Symlink in home directory: ~/logs/wsms -> /var/log/wsms
 mkdir -p "$HOME/logs"
+if [ -d "$HOME/logs/wsms" ] && [ ! -L "$HOME/logs/wsms" ]; then
+    cp -rn "$HOME/logs/wsms/"* /var/log/wsms/ 2>/dev/null || true
+    rm -rf "$HOME/logs/wsms"
+fi
 ln -sfn /var/log/wsms "$HOME/logs/wsms" && log_success "Created symlink: ~/logs/wsms -> /var/log/wsms"
 
 echo -e "${GREEN}✅ Infrastructure ready${NC}"
@@ -249,7 +299,7 @@ sudo apt-get update -qq
 
 PACKAGES="acl clamav clamav-daemon openssh-client bc curl mysql-client msmtp msmtp-mta bsd-mailx ca-certificates"
 echo -e "   Installing: $PACKAGES"
-if sudo apt-get install -y $PACKAGES; then
+if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $PACKAGES; then
     log_success "Package installation finished"
 else
     log_warning "Some packages could not be installed. Check output above for details."
@@ -2854,7 +2904,7 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}✅ WSMS PRO v4.5.0 — READY FOR OPERATIONS${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "${WHITE}📚 Docs: ~/wsms_system/docs/ (wsms-docs) │ 🐛 Issues: github.com/lucasmalec${NC}"
+echo -e "${WHITE}📚 Docs: ~/wsms_system/docs/ (wsms-docs) │ 🌐 GitHub: https://github.com/lucasmalec/wp-server-management-system${NC}"
 echo -e "${WHITE}👤 Maintainer: Lukasz Malec <github@lucasmalec.com> │ 🌐 lucasmalec.com${NC}"
 echo ""
 EOFHELP

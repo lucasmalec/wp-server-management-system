@@ -83,6 +83,7 @@ run_check() {
 prepare_environment() {
     run_as_tester "mkdir -p ~/logs/wsms/sync ~/logs/wsms/retention ~/logs/wsms/backups"
     run_as_tester "mkdir -p ~/.ssh && touch ~/.ssh/fake_nas_key && chmod 600 ~/.ssh/fake_nas_key"
+    run_as_tester "sed -i 's/^ALERT_EMAIL=.*/ALERT_EMAIL=\"\"/' ~/scripts/wsms-config.sh"
 }
 
 prepare_valid_domains_for_hosts_sync() {
@@ -104,19 +105,21 @@ run_all_module_checks() {
     run_check "nas-sftp-sync.sh" "expected-fail" "NAS_HOST= NAS_PORT=22 NAS_USER=tester NAS_PATH=/tmp/nas NAS_SSH_KEY=/home/tester/.ssh/fake_nas_key ~/scripts/nas-sftp-sync.sh" "Missing NAS configuration"
     run_check "wp-smart-retention-manager.sh" "success" "~/scripts/wp-smart-retention-manager.sh list"
     run_check "wp-help.sh" "success" "TERM=xterm ~/scripts/wp-help.sh"
-    run_check "wp-interactive-backup-tool.sh" "success" "printf '0\n' | ~/scripts/wp-interactive-backup-tool.sh"
+    run_check "wp-interactive-backup-tool.sh" "success" "echo 0 | ~/scripts/wp-interactive-backup-tool.sh"
     run_check "standalone-mysql-backup-engine.sh" "success" "~/scripts/standalone-mysql-backup-engine.sh"
     run_check "red-robin-system-backup.sh" "marker" "~/scripts/red-robin-system-backup.sh" "System backup"
     run_check "clamav-auto-scan.sh" "success" "~/scripts/clamav-auto-scan.sh"
     run_check "clamav-full-scan.sh" "marker" "~/scripts/clamav-full-scan.sh" "Full scan complete"
     run_check "wp-cli-infrastructure-validator.sh" "success" "~/scripts/wp-cli-infrastructure-validator.sh"
     run_check "wsms-notify.sh" "success" "source ~/scripts/wsms-notify.sh && echo ok"
-    run_check "wsms-daily-check.sh" "success" "ALERT_EMAIL='' bash ~/scripts/wsms-daily-check.sh"
+    run_check "wsms-daily-check.sh" "success" "~/scripts/wsms-daily-check.sh"
     run_check "wp-rollback.sh:snapshot-all" "success" "~/scripts/wp-rollback.sh snapshot all"
     run_check "wp-rollback.sh:list-site1" "success" "~/scripts/wp-rollback.sh list site1"
     run_check "wp-rollback.sh:rollback-site1" "success" "~/scripts/wp-rollback.sh rollback site1"
     prepare_valid_domains_for_hosts_sync
     run_check "wp-hosts-sync.sh" "success" "~/scripts/wp-hosts-sync.sh"
+    run_check "static-sites-backup.sh" "success" "~/scripts/static-sites-backup.sh list"
+    run_check "wsms-docs:alias" "success" "bash -ic 'wsms-docs'"
     run_check "wsms-clean.sh" "success" "~/scripts/wsms-clean.sh --force"
 }
 

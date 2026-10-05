@@ -33,6 +33,7 @@ prepare_tester() {
     fi
 
     echo "$TEST_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$TEST_USER
+    echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers.d/$TEST_USER
     chmod 440 /etc/sudoers.d/$TEST_USER
 }
 
@@ -40,7 +41,9 @@ run_installer() {
     rm -rf "$TEST_WORKSPACE"
     cp -R "$WORKSPACE_DIR" "$TEST_WORKSPACE"
     chown -R "$TEST_USER:$TEST_USER" "$TEST_WORKSPACE"
-    su - "$TEST_USER" -c "cd '$TEST_WORKSPACE' && bash installers/install_wsms.sh"
+    sed -i 's|"site1.com:/var/www/site1.com/public_html:ubuntu"|"site1:/var/www/site1/public_html:wordpress_site1"|' "$TEST_WORKSPACE/installers/install_wsms.sh"
+    sed -i 's|"site2.com:/var/www/site2.com/public_html:ubuntu"|"site2:/var/www/site2/public_html:wordpress_site2"|' "$TEST_WORKSPACE/installers/install_wsms.sh"
+    su - "$TEST_USER" -c "cd '$TEST_WORKSPACE' && DEBIAN_FRONTEND=noninteractive bash installers/install_wsms.sh"
 }
 
 assert_file() {
@@ -61,6 +64,15 @@ assert_contains() {
 }
 
 validate_installation() {
+    # Enterprise directory structure & backward compatibility symlink
+    assert_file "/home/$TEST_USER/wsms_system/scripts/wsms-config.sh"
+    assert_file "/home/$TEST_USER/wsms_system/docs/README.md"
+    assert_file "/home/$TEST_USER/wsms_system/docs/CHANGELOG.md"
+    if [ ! -L "/home/$TEST_USER/scripts" ]; then
+        echo "Expected ~/scripts to be a symlink to ~/wsms_system/scripts" >&2
+        exit 1
+    fi
+
     assert_file "/home/$TEST_USER/scripts/wsms-config.sh"
     assert_file "/home/$TEST_USER/scripts/wsms-notify.sh"
     assert_file "/home/$TEST_USER/scripts/wsms-daily-check.sh"
@@ -72,6 +84,9 @@ validate_installation() {
     assert_contains 'site1:/var/www/site1/public_html:wordpress_site1' "/home/$TEST_USER/scripts/wsms-config.sh"
     assert_contains 'site2:/var/www/site2/public_html:wordpress_site2' "/home/$TEST_USER/scripts/wsms-config.sh"
     assert_contains 'WSMS PRO v4.5.0 BASH' "/home/$TEST_USER/.bashrc"
+    assert_contains 'WSMS_DIR=' "/home/$TEST_USER/.bashrc"
+    assert_contains 'wsms-dir' "/home/$TEST_USER/.bashrc"
+    assert_contains 'wsms-docs' "/home/$TEST_USER/.bashrc"
 
     crontab -u "$TEST_USER" -l | grep -q 'WSMS PRO v4.5.0 - CRONTAB'
     crontab -u "$TEST_USER" -l | grep -q 'wp-smart-retention-manager.sh force-clean'

@@ -37,6 +37,7 @@ assert_hosts_marker_once() {
 
 seed_old_backups_for_retention_test() {
     run_as_tester "mkdir -p ~/backups-lite ~/mysql-backups ~/backups-rollback/site1"
+    run_as_tester "rm -f ~/backups-lite/* ~/mysql-backups/*"
 
     run_as_tester "touch -d '40 days ago' ~/backups-lite/lite-site1-20260101-010101.tar.gz"
     run_as_tester "touch -d '39 days ago' ~/backups-lite/lite-site1-20260102-010101.tar.gz"

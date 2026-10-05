@@ -185,14 +185,60 @@ log_success "Symlink kompatybilności: ~/scripts -> ~/wsms_system/scripts"
 
 # Kopiowanie dokumentacji do ~/wsms_system/docs/
 REPO_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# 1. Kopiuj z lokalnego repozytorium jeśli dostępne
 if [ -d "$REPO_SRC_DIR/docs" ]; then
     cp -r "$REPO_SRC_DIR/docs/"* "$WSMS_DOCS_DIR/" 2>/dev/null || true
+elif [ -d "$(pwd)/docs" ]; then
+    cp -r "$(pwd)/docs/"* "$WSMS_DOCS_DIR/" 2>/dev/null || true
 fi
+
 if [ -f "$REPO_SRC_DIR/README.md" ]; then
     cp "$REPO_SRC_DIR/README.md" "$WSMS_DOCS_DIR/README.md" 2>/dev/null || true
+elif [ -f "$(pwd)/README.md" ]; then
+    cp "$(pwd)/README.md" "$WSMS_DOCS_DIR/README.md" 2>/dev/null || true
 fi
+
 if [ -f "$REPO_SRC_DIR/CHANGELOG.md" ]; then
     cp "$REPO_SRC_DIR/CHANGELOG.md" "$WSMS_DOCS_DIR/CHANGELOG.md" 2>/dev/null || true
+elif [ -f "$(pwd)/CHANGELOG.md" ]; then
+    cp "$(pwd)/CHANGELOG.md" "$WSMS_DOCS_DIR/CHANGELOG.md" 2>/dev/null || true
+fi
+
+# 2. Fallback: Jeśli instalator został uruchomiony jako pojedynczy plik (np. curl / scp), pobierz dokumentację z repozytorium GitHub
+if [ ! -f "$WSMS_DOCS_DIR/README.md" ]; then
+    log_info "Pobieranie dokumentacji z oficjalnego repozytorium GitHub..."
+    GH_RAW="https://raw.githubusercontent.com/lucasmalec/wp-server-management-system/main"
+    for doc in "README.md" "CHANGELOG.md"; do
+        curl -sSfL "$GH_RAW/$doc" -o "$WSMS_DOCS_DIR/$doc" 2>/dev/null || true
+    done
+    for doc in "DEPLOYMENT_GUIDE.md" "MAIL_CONFIGURATION.md" "TECHNICAL_REFERENCE.md" "FISH_SETUP_GUIDE.md" "TUTORIAL_DODAWANIE_NOWEJ_STRONY_PL.md" "TUTORIAL_ADDING_NEW_SITE_EN.md" "msmtprc.example" "mailrc.example"; do
+        curl -sSfL "$GH_RAW/docs/$doc" -o "$WSMS_DOCS_DIR/$doc" 2>/dev/null || true
+    done
+fi
+
+# 3. Fallback offline: Gwarancja, że katalog ~/wsms_system/docs/ zawsze zawiera kompletną dokumentację podręczną
+if [ ! -f "$WSMS_DOCS_DIR/README.md" ]; then
+    cat > "$WSMS_DOCS_DIR/README.md" << 'EOFDOC'
+# WSMS PRO v4.5.0 — Dokumentacja Systemu
+
+Katalog operacyjny: `~/wsms_system/`
+- `~/wsms_system/scripts/` — Skrypty operacyjne i konfiguracja centralna (`wsms-config.sh`)
+- `~/wsms_system/docs/` — Dokumentacja podręczna (alias: `wsms-docs`)
+
+## Główne polecenia:
+- `wp-help` — Pełny spis wszystkich 30+ poleceń
+- `wp-status` — Szybki przegląd stanu systemu, floty i dysku
+- `system-diag` — Dogłębny audyt zdrowia serwera
+- `wp-fleet` — Status domen, SSL, HTTP i bazy danych
+- `wp-audit` — Audyt bezpieczeństwa i uprawnień
+- `wp-fix-perms` — Automatyczna naprawa uprawnień i tworzenie użytkowników izolacji
+- `wp-update` — Automatyczna aktualizacja floty z rollbackiem
+- `wsms-dir` — Przejście do katalogu głównego systemu
+- `wsms-docs` — Lista plików dokumentacji
+
+Repozytorium GitHub: https://github.com/lucasmalec/wp-server-management-system
+EOFDOC
 fi
 log_success "Dokumentacja zainstalowana w ~/wsms_system/docs/"
 
@@ -239,6 +285,10 @@ fi
 
 # Dowiązanie symboliczne w katalogu domowym: ~/logs/wsms -> /var/log/wsms
 mkdir -p "$HOME/logs"
+if [ -d "$HOME/logs/wsms" ] && [ ! -L "$HOME/logs/wsms" ]; then
+    cp -rn "$HOME/logs/wsms/"* /var/log/wsms/ 2>/dev/null || true
+    rm -rf "$HOME/logs/wsms"
+fi
 ln -sfn /var/log/wsms "$HOME/logs/wsms" && log_success "Utworzono symlink: ~/logs/wsms -> /var/log/wsms"
 
 echo -e "${GREEN}✅ Infrastruktura gotowa${NC}"
@@ -249,7 +299,7 @@ sudo apt-get update -qq
 
 PACKAGES="acl clamav clamav-daemon openssh-client bc curl mysql-client msmtp msmtp-mta bsd-mailx ca-certificates"
 echo -e "   Instalacja: $PACKAGES"
-if sudo apt-get install -y $PACKAGES; then
+if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $PACKAGES; then
     log_success "Instalacja pakietów zakończona"
 else
     log_warning "Część pakietów nie została zainstalowana. Sprawdź komunikaty powyżej."
@@ -2769,7 +2819,7 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}✅ WSMS PRO v4.5.0 — GOTOWY DO PRACY${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "${WHITE}📚 Dokumentacja: ~/wsms_system/docs/ (wsms-docs) │ 🐛 Zgłoś problem: github.com/lucasmalec${NC}"
+echo -e "${WHITE}📚 Dokumentacja: ~/wsms_system/docs/ (wsms-docs) │ 🌐 GitHub: https://github.com/lucasmalec/wp-server-management-system${NC}"
 echo -e "${WHITE}👤 Autor: Lukasz Malec <github@lucasmalec.com> │ 🌐 lucasmalec.com${NC}"
 echo ""
 EOFHELP
